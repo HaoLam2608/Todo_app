@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:todo_list/all_task/task.dart';
 import 'package:todo_list/database/user_database.dart';
-import 'package:todo_list/homepage/homepage.dart'; // TaskApp ở đây
+import 'package:todo_list/homepage/homepage.dart'; // HomeScreen
 import 'package:todo_list/login/sign_up.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -19,21 +18,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     final email = emailController.text.trim();
-    final password = passwordController.text;
+    final password = passwordController.text.trim();
 
-    final user = await UserDatabase.instance.getUserByEmailAndPassword(
-      email,
-      password,
-    );
-
-    if (user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => TaskApp()),
-      );
-    } else {
+    // Basic input validation
+    if (email.isEmpty || password.isEmpty) {
       setState(() {
-        errorMessage = 'Sai email hoặc mật khẩu!';
+        errorMessage = 'Vui lòng nhập email và mật khẩu!';
+      });
+      return;
+    }
+
+    try {
+      final user = await UserDatabase.instance.getUserByEmailAndPassword(
+        email,
+        password,
+      );
+
+      if (user != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
+        );
+      } else {
+        setState(() {
+          errorMessage = 'Sai email hoặc mật khẩu!';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Đã xảy ra lỗi: $e';
       });
     }
   }
@@ -84,7 +97,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    errorText: errorMessage.isNotEmpty &&
+                            emailController.text.trim().isEmpty
+                        ? 'Email is required'
+                        : null,
                   ),
+                  keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -108,13 +126,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    errorText: errorMessage.isNotEmpty &&
+                            passwordController.text.trim().isEmpty
+                        ? 'Password is required'
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      // Implement forgot password logic here
+                    },
                     child: const Text(
                       'Forgot Password?',
                       style: TextStyle(color: Colors.blue),
@@ -136,7 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text('Login', style: TextStyle(fontSize: 16)),
                   ),
                 ),
-                if (errorMessage.isNotEmpty)
+                if (errorMessage.isNotEmpty &&
+                    emailController.text.trim().isNotEmpty &&
+                    passwordController.text.trim().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Text(
@@ -191,5 +217,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 }

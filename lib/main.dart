@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:todo_list/all_task/task.dart';
 import 'package:todo_list/homepage/homepage.dart';
+import 'package:todo_list/login/login_screen.dart';
 import 'package:todo_list/login/onboaring.dart';
 import 'package:todo_list/user/user.dart';
 
@@ -19,7 +20,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: HomeScreen(),
+      home: LoginScreen(),
     );
   }
 }

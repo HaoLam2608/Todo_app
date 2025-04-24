@@ -3,10 +3,12 @@ import 'package:todo_list/all_task/add_task.dart';
 import 'package:todo_list/all_task/task.dart';
 import 'package:todo_list/database/task_database.dart';
 import 'package:todo_list/database/task_model.dart';
-import 'package:todo_list/user/user.dart'; // Import trang AllTasksPage
+import 'package:todo_list/database/user_model.dart';
+import 'package:todo_list/user/user.dart'; 
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final UserModel user; // Add user parameter to HomeScreen
+  const HomeScreen({super.key, required this.user});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -15,13 +17,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    HomeContent(), // Trang chính
-    Placeholder(), // Lịch
-    AddTaskPage(), // Add (nếu cần)
-    AllTasksPage(), // Danh sách tất cả task
-    SettingsApp(), // Settings
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize pages with the user passed to SettingsPage
+    _pages = [
+      HomeContent(), // Trang chính
+      Placeholder(), // Lịch
+      AddTaskPage(), // Add (nếu cần)
+      AllTasksPage(), // Danh sách tất cả task
+      SettingsPage(user: widget.user), // Pass user to SettingsPage
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -42,26 +51,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      floatingActionButton:
-          _selectedIndex == 3
-              ? null
-              : SizedBox(
-                height: 72,
-                width: 72,
-                child: FloatingActionButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => AddTaskPage()),
-                    ).then((refresh) {
-                      if (refresh == true) setState(() {});
-                    });
-                  },
-                  backgroundColor: Colors.blue,
-                  shape: const CircleBorder(),
-                  child: const Icon(Icons.add, size: 36),
-                ),
+      floatingActionButton: _selectedIndex == 3
+          ? null
+          : SizedBox(
+              height: 72,
+              width: 72,
+              child: FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => AddTaskPage()),
+                  ).then((refresh) {
+                    if (refresh == true) setState(() {});
+                  });
+                },
+                backgroundColor: Colors.blue,
+                shape: const CircleBorder(),
+                child: const Icon(Icons.add, size: 36),
               ),
+            ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
@@ -70,21 +78,20 @@ class _HomeScreenState extends State<HomeScreen> {
           height: 60,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children:
-                _selectedIndex == 3
-                    ? [
-                      _buildNavIcon(Icons.home, 0),
-                      _buildNavIcon(Icons.calendar_today, 1),
-                      _buildNavIcon(Icons.insert_drive_file, 3),
-                      _buildNavIcon(Icons.settings, 4),
-                    ]
-                    : [
-                      _buildNavIcon(Icons.home, 0),
-                      _buildNavIcon(Icons.calendar_today, 1),
-                      const SizedBox(width: 10), // chỗ cho FAB
-                      _buildNavIcon(Icons.insert_drive_file, 3),
-                      _buildNavIcon(Icons.settings, 4),
-                    ],
+            children: _selectedIndex == 3
+                ? [
+                    _buildNavIcon(Icons.home, 0),
+                    _buildNavIcon(Icons.calendar_today, 1),
+                    _buildNavIcon(Icons.insert_drive_file, 3),
+                    _buildNavIcon(Icons.settings, 4),
+                  ]
+                : [
+                    _buildNavIcon(Icons.home, 0),
+                    _buildNavIcon(Icons.calendar_today, 1),
+                    const SizedBox(width: 10), // Space for FAB
+                    _buildNavIcon(Icons.insert_drive_file, 3),
+                    _buildNavIcon(Icons.settings, 4),
+                  ],
           ),
         ),
       ),
@@ -190,8 +197,6 @@ class _HomeContentState extends State<HomeContent> {
                   )
                   .toList(),
             ),
-
-            // Có thể thêm completed task tương tự nếu muốn
           ],
         ),
       ),
@@ -256,37 +261,36 @@ class _HomeContentState extends State<HomeContent> {
             if (!completed) {
               showDialog(
                 context: context,
-                builder:
-                    (_) => AlertDialog(
-                      title: const Text("Hoàn thành task này?"),
-                      content: Text(
-                        "Bạn có chắc chắn muốn đánh dấu '${title}' là hoàn thành?",
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text("Huỷ"),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final updatedTask = Task(
-                              id: task!.id,
-                              title: task.title,
-                              category: task.category,
-                              dueDate: task.dueDate,
-                              time: task.time,
-                              reminder: task.reminder,
-                              notes: task.notes,
-                              isCompleted: 1,
-                            );
-                            await TaskDatabase.instance.update(updatedTask);
-                            Navigator.pop(context);
-                            loadTodayTasks(); // refresh
-                          },
-                          child: const Text("Xác nhận"),
-                        ),
-                      ],
+                builder: (_) => AlertDialog(
+                  title: const Text("Hoàn thành task này?"),
+                  content: Text(
+                    "Bạn có chắc chắn muốn đánh dấu '${title}' là hoàn thành?",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Huỷ"),
                     ),
+                    TextButton(
+                      onPressed: () async {
+                        final updatedTask = Task(
+                          id: task!.id,
+                          title: task.title,
+                          category: task.category,
+                          dueDate: task.dueDate,
+                          time: task.time,
+                          reminder: task.reminder,
+                          notes: task.notes,
+                          isCompleted: 1,
+                        );
+                        await TaskDatabase.instance.update(updatedTask);
+                        Navigator.pop(context);
+                        loadTodayTasks(); // refresh
+                      },
+                      child: const Text("Xác nhận"),
+                    ),
+                  ],
+                ),
               );
             }
           },
