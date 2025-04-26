@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:todo_list/all_task/Calender_task.dart';
 import 'package:todo_list/all_task/add_task.dart';
 import 'package:todo_list/all_task/task.dart';
 import 'package:todo_list/database/task_database.dart';
@@ -25,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Initialize pages with the user passed to SettingsPage
     _pages = [
       HomeContent(), // Trang chính
-      Placeholder(), // Lịch
+      CalendarPage(), // Lịch
       AddTaskPage(), // Add (nếu cần)
       AllTasksPage(), // Danh sách tất cả task
       SettingsPage(user: widget.user), // Pass user to SettingsPage
