@@ -35,13 +35,16 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   sqflite: ^2.3.0
   path: ^1.9.0
-  flutter_local_notifications: ^15.1.0+1
+  flutter_local_notifications: ^16.1.1
   timezone: ^0.9.2
   cupertino_icons: ^1.0.8
   lucide_icons: ^0.257.0
   image_picker: ^1.0.0
   path_provider: ^2.0.0
   permission_handler: ^11.0.1
+  flutter_iconpicker: ^4.0.0
+  material_design_icons_flutter: ^5.0.6595-rc.1
+  
 
 dev_dependencies:
   flutter_test:

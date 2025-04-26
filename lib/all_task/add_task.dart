@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:todo_list/all_task/task.dart';
 import 'package:todo_list/database/task_model.dart';
 import 'package:todo_list/database/task_database.dart';
+import 'package:todo_list/homepage/homepage.dart';
 import 'package:todo_list/main.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_init;
 
-final FlutterLocalNotificationsPlugin flutterNotificationPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterNotificationPlugin =
+    FlutterLocalNotificationsPlugin();
 
 Future<void> initNotifications() async {
   const AndroidInitializationSettings initializationSettingsAndroid =
-  AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings('@mipmap/ic_launcher');
 
   final InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
@@ -26,7 +28,11 @@ Future<void> initNotifications() async {
 }
 
 Future<void> scheduleTaskReminder(
-    int id, String title, String note, DateTime scheduleDate) async {
+  int id,
+  String title,
+  String note,
+  DateTime scheduleDate,
+) async {
   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
     'task_reminder_channel',
     'Task Reminders',
@@ -47,7 +53,7 @@ Future<void> scheduleTaskReminder(
     platformDetails,
     androidAllowWhileIdle: true,
     uiLocalNotificationDateInterpretation:
-    UILocalNotificationDateInterpretation.absoluteTime,
+        UILocalNotificationDateInterpretation.absoluteTime,
   );
 }
 
@@ -104,68 +110,78 @@ class _AddTaskPageState extends State<AddTaskPage> {
   void _showCustomReminderDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text("Custom Reminder"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.calendar_today),
-                  title: Text(customReminderDate),
-                  onTap: () async {
-                    DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                      lastDate: dueDateTime != null
-                          ? dueDateTime!
-                          : DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() {
-                        customReminderDate = picked.toLocal().toString().split(' ')[0];
-                      });
-                    }
-                  },
+      builder:
+          (context) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text("Custom Reminder"),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(customReminderDate),
+                      onTap: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 1),
+                          ),
+                          lastDate:
+                              dueDateTime != null
+                                  ? dueDateTime!
+                                  : DateTime.now().add(
+                                    const Duration(days: 365),
+                                  ),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            customReminderDate =
+                                picked.toLocal().toString().split(' ')[0];
+                          });
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.access_time),
+                      title: Text(customReminderTime),
+                      onTap: () async {
+                        TimeOfDay? pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (pickedTime != null) {
+                          setDialogState(() {
+                            customReminderTime =
+                                "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
+                          });
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: const Icon(Icons.access_time),
-                  title: Text(customReminderTime),
-                  onTap: () async {
-                    TimeOfDay? pickedTime = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.now(),
-                    );
-                    if (pickedTime != null) {
-                      setDialogState(() {
-                        customReminderTime =
-                        "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
-                      });
-                    }
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () {
-                  _setCustomReminder(customReminderDate, customReminderTime);
-                  Navigator.pop(context);
-                },
-                child: const Text("Set"),
-              ),
-            ],
-          );
-        },
-      ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Cancel"),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      _setCustomReminder(
+                        customReminderDate,
+                        customReminderTime,
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Set"),
+                  ),
+                ],
+              );
+            },
+          ),
     );
   }
 
@@ -188,7 +204,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
         // Kiểm tra xem thời gian nhắc nhở có trước deadline không
         if (dueDateTime != null && customDateTime.isAfter(dueDateTime!)) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Thời gian nhắc nhở phải trước thời hạn')),
+            const SnackBar(
+              content: Text('Thời gian nhắc nhở phải trước thời hạn'),
+            ),
           );
           return;
         }
@@ -230,7 +248,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     onTap: () {
                       Navigator.pop(context);
                     },
-                    child: const Text("Cancel", style: TextStyle(color: Colors.red)),
+                    child: const Text(
+                      "Cancel",
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
                 ],
               ),
@@ -254,14 +275,15 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   fillColor: Colors.lightBlueAccent,
                   border: InputBorder.none,
                 ),
-                items: ['Work', 'Study', 'Personal']
-                    .map(
-                      (label) => DropdownMenuItem(
-                    value: label,
-                    child: Text(label),
-                  ),
-                )
-                    .toList(),
+                items:
+                    ['Work', 'Study', 'Personal']
+                        .map(
+                          (label) => DropdownMenuItem(
+                            value: label,
+                            child: Text(label),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (value) {
                   setState(() => selectedCategory = value.toString());
                 },
@@ -313,7 +335,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   );
                   if (pickedTime != null) {
                     setState(() {
-                      selectedTime = "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
+                      selectedTime =
+                          "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
 
                       // Cập nhật dueDateTime
                       if (selectedDate != "Set due date") {
@@ -366,65 +389,66 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   onTap: () {
                     showDialog(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text("Set Reminder"),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ListTile(
-                              title: const Text("10 minutes before"),
-                              onTap: () {
-                                setState(() {
-                                  selectedReminder = "10 minutes before";
-                                  _updateReminderDateTime();
-                                });
-                                Navigator.pop(context);
-                              },
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text("Set Reminder"),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  title: const Text("10 minutes before"),
+                                  onTap: () {
+                                    setState(() {
+                                      selectedReminder = "10 minutes before";
+                                      _updateReminderDateTime();
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                ListTile(
+                                  title: const Text("30 minutes before"),
+                                  onTap: () {
+                                    setState(() {
+                                      selectedReminder = "30 minutes before";
+                                      _updateReminderDateTime();
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                ListTile(
+                                  title: const Text("1 hour before"),
+                                  onTap: () {
+                                    setState(() {
+                                      selectedReminder = "1 hour before";
+                                      _updateReminderDateTime();
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                ListTile(
+                                  title: const Text("1 day before"),
+                                  onTap: () {
+                                    setState(() {
+                                      selectedReminder = "1 day before";
+                                      _updateReminderDateTime();
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                ),
+                                ListTile(
+                                  title: const Text("Custom time & date"),
+                                  trailing: const Icon(Icons.calendar_month),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    // Khởi tạo giá trị mặc định cho ngày giờ tùy chỉnh
+                                    customReminderDate = "Select date";
+                                    customReminderTime = "Select time";
+                                    _showCustomReminderDialog();
+                                  },
+                                ),
+                              ],
                             ),
-                            ListTile(
-                              title: const Text("30 minutes before"),
-                              onTap: () {
-                                setState(() {
-                                  selectedReminder = "30 minutes before";
-                                  _updateReminderDateTime();
-                                });
-                                Navigator.pop(context);
-                              },
-                            ),
-                            ListTile(
-                              title: const Text("1 hour before"),
-                              onTap: () {
-                                setState(() {
-                                  selectedReminder = "1 hour before";
-                                  _updateReminderDateTime();
-                                });
-                                Navigator.pop(context);
-                              },
-                            ),
-                            ListTile(
-                              title: const Text("1 day before"),
-                              onTap: () {
-                                setState(() {
-                                  selectedReminder = "1 day before";
-                                  _updateReminderDateTime();
-                                });
-                                Navigator.pop(context);
-                              },
-                            ),
-                            ListTile(
-                              title: const Text("Custom time & date"),
-                              trailing: const Icon(Icons.calendar_month),
-                              onTap: () {
-                                Navigator.pop(context);
-                                // Khởi tạo giá trị mặc định cho ngày giờ tùy chỉnh
-                                customReminderDate = "Select date";
-                                customReminderTime = "Select time";
-                                _showCustomReminderDialog();
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
                     );
                   },
                 ),
@@ -482,10 +506,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
           if (!mounted) return;
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => TaskApp()),
-          );
+          Navigator.pop(context);
         },
         backgroundColor: Colors.blue,
         child: const Icon(Icons.check),
