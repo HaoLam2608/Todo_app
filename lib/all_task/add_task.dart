@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:todo_list/all_task/task.dart';
+import 'package:todo_list/database/category_database.dart';
 import 'package:todo_list/database/task_model.dart';
 import 'package:todo_list/database/task_database.dart';
 import 'package:todo_list/homepage/homepage.dart';
@@ -65,8 +66,9 @@ class AddTaskPage extends StatefulWidget {
 class _AddTaskPageState extends State<AddTaskPage> {
   final titleController = TextEditingController();
   final notesController = TextEditingController();
+  List<Map<String, dynamic>> categories = [];
+  String? selectedCategory="";
 
-  String selectedCategory = "Work";
   String selectedDate = "Set due date";
   String selectedTime = "Set Time";
   String selectedReminder = "No reminder";
@@ -83,6 +85,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
   void initState() {
     super.initState();
     initNotifications();
+    loadCategories();
+  }
+
+  Future<void> loadCategories() async {
+    final data = await DatabaseHelper.instance.getCategories();
+    setState(() {
+      categories = data;
+    });
   }
 
   // Hàm cập nhật thời gian nhắc nhở dựa trên lựa chọn
@@ -276,16 +286,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   border: InputBorder.none,
                 ),
                 items:
-                    ['Work', 'Study', 'Personal']
-                        .map(
-                          (label) => DropdownMenuItem(
-                            value: label,
-                            child: Text(label),
-                          ),
-                        )
-                        .toList(),
+                    categories.map((category) {
+                      return DropdownMenuItem<String>(
+                        value: category['name'], // lấy tên để chọn
+                        child: Text(category['name']),
+                      );
+                    }).toList(),
                 onChanged: (value) {
-                  setState(() => selectedCategory = value.toString());
+                  setState(() {
+                    selectedCategory = value;
+                  });
                 },
               ),
               const SizedBox(height: 20),
@@ -486,7 +496,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
           final newTask = Task(
             title: titleController.text,
-            category: selectedCategory,
+            category: selectedCategory ?? 'Uncategorized',
             dueDate: selectedDate,
             time: selectedTime,
             reminder: reminderEnabled ? selectedReminder : "No reminder",
