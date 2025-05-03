@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:todo_list/database/user_database.dart';
 import 'package:todo_list/homepage/homepage.dart'; // HomeScreen
 import 'package:todo_list/login/sign_up.dart';
+import '../services/session_manager.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,6 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (user != null) {
+        // Lưu thông tin người dùng vào session
+        await SessionManager.saveUserSession(user);
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
@@ -97,10 +101,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    errorText: errorMessage.isNotEmpty &&
-                            emailController.text.trim().isEmpty
-                        ? 'Email is required'
-                        : null,
+                    errorText:
+                        errorMessage.isNotEmpty &&
+                                emailController.text.trim().isEmpty
+                            ? 'Email is required'
+                            : null,
                   ),
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -126,10 +131,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    errorText: errorMessage.isNotEmpty &&
-                            passwordController.text.trim().isEmpty
-                        ? 'Password is required'
-                        : null,
+                    errorText:
+                        errorMessage.isNotEmpty &&
+                                passwordController.text.trim().isEmpty
+                            ? 'Password is required'
+                            : null,
                   ),
                 ),
                 const SizedBox(height: 8),

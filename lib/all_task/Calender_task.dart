@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:todo_list/database/task_database.dart';
-
-import 'add_task.dart';
+import '../services/session_manager.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -25,35 +24,42 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<void> _loadEvents() async {
     setState(() => _isLoading = true);
+    final userId =
+        await SessionManager.getCurrentUserId(); // Lấy ID người dùng hiện tại
     final tasks = await TaskDatabase.instance.getTasks();
     List<Map<String, dynamic>> newEvents = [];
 
     for (var task in tasks) {
-      try {
-        // Expected format: "yyyy-MM-dd" (e.g., "2025-04-24")
-        List<String> dateParts = task.dueDate.split(' ')[0].split('-');
-        if (dateParts.length != 3) {
-          print("Invalid date format: ${task.dueDate}");
-          continue;
+      if (task.userId == userId) {
+        // Kiểm tra nếu task thuộc về người dùng hiện tại
+        try {
+          // Expected format: "yyyy-MM-dd"
+          List<String> dateParts = task.dueDate.split(' ')[0].split('-');
+          if (dateParts.length != 3) {
+            print("Invalid date format: ${task.dueDate}");
+            continue;
+          }
+
+          int year = int.parse(dateParts[0]);
+          int month = int.parse(dateParts[1]);
+          int day = int.parse(dateParts[2]);
+
+          String time = "No time set";
+          if (task.dueDate.contains(" ")) {
+            time = task.dueDate.split(" ")[1];
+          }
+
+          newEvents.add({
+            'date': DateTime(year, month, day),
+            'time': time,
+            'title': task.title,
+            'id': task.id,
+          });
+        } catch (e) {
+          print(
+            "Error parsing date for task ${task.title}: ${task.dueDate}, error: $e",
+          );
         }
-
-        int year = int.parse(dateParts[0]);
-        int month = int.parse(dateParts[1]);
-        int day = int.parse(dateParts[2]);
-
-        String time = "No time set";
-        if (task.dueDate.contains(" ")) {
-          time = task.dueDate.split(" ")[1];
-        }
-
-        newEvents.add({
-          'date': DateTime(year, month, day),
-          'time': time,
-          'title': task.title,
-          'id': task.id,
-        });
-      } catch (e) {
-        print("Error parsing date for task ${task.title}: ${task.dueDate}, error: $e");
       }
     }
 
@@ -88,8 +94,18 @@ class _CalendarPageState extends State<CalendarPage> {
 
   String _getMonthName(int month) {
     const monthNames = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
     return monthNames[month - 1];
   }
@@ -105,10 +121,7 @@ class _CalendarPageState extends State<CalendarPage> {
       appBar: AppBar(
         title: const Text(
           'Calendar',
-          style: TextStyle(
-            color: Colors.blue,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -192,10 +205,11 @@ class _CalendarPageState extends State<CalendarPage> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 7,
-                      childAspectRatio: 1.2,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7,
+                          childAspectRatio: 1.2,
+                        ),
                     itemCount: daysInMonth.length,
                     itemBuilder: (context, index) {
                       int day = daysInMonth[index];
@@ -203,7 +217,8 @@ class _CalendarPageState extends State<CalendarPage> {
 
                       if (index < firstDayOfMonth.weekday % 7) {
                         isCurrentMonth = false; // Previous month
-                      } else if (index >= (firstDayOfMonth.weekday % 7) + lastDayOfMonth.day) {
+                      } else if (index >=
+                          (firstDayOfMonth.weekday % 7) + lastDayOfMonth.day) {
                         isCurrentMonth = false; // Next month
                       }
 
@@ -212,47 +227,70 @@ class _CalendarPageState extends State<CalendarPage> {
                       int adjustedYear = currentYear;
 
                       if (index < firstDayOfMonth.weekday % 7) {
-                        adjustedMonth = currentMonth == 1 ? 12 : currentMonth - 1;
-                        adjustedYear = currentMonth == 1 ? currentYear - 1 : currentYear;
-                        var prevMonthLastDay = DateTime(adjustedYear, adjustedMonth + 1, 0).day;
-                        adjustedDay = prevMonthLastDay - (firstDayOfMonth.weekday % 7 - index) + 1;
-                      } else if (index >= (firstDayOfMonth.weekday % 7) + lastDayOfMonth.day) {
-                        adjustedMonth = currentMonth == 12 ? 1 : currentMonth + 1;
-                        adjustedYear = currentMonth == 12 ? currentYear + 1 : currentYear;
+                        adjustedMonth =
+                            currentMonth == 1 ? 12 : currentMonth - 1;
+                        adjustedYear =
+                            currentMonth == 1 ? currentYear - 1 : currentYear;
+                        var prevMonthLastDay =
+                            DateTime(adjustedYear, adjustedMonth + 1, 0).day;
+                        adjustedDay =
+                            prevMonthLastDay -
+                            (firstDayOfMonth.weekday % 7 - index) +
+                            1;
+                      } else if (index >=
+                          (firstDayOfMonth.weekday % 7) + lastDayOfMonth.day) {
+                        adjustedMonth =
+                            currentMonth == 12 ? 1 : currentMonth + 1;
+                        adjustedYear =
+                            currentMonth == 12 ? currentYear + 1 : currentYear;
                         adjustedDay = day;
                       }
 
-                      bool isSelected = adjustedDay == selectedDate.day &&
+                      bool isSelected =
+                          adjustedDay == selectedDate.day &&
                           adjustedMonth == selectedDate.month &&
                           adjustedYear == selectedDate.year;
 
-                      bool hasEvents = events.any((event) =>
-                      event['date'].day == adjustedDay &&
-                          event['date'].month == adjustedMonth &&
-                          event['date'].year == adjustedYear);
+                      bool hasEvents = events.any(
+                        (event) =>
+                            event['date'].day == adjustedDay &&
+                            event['date'].month == adjustedMonth &&
+                            event['date'].year == adjustedYear,
+                      );
 
                       return GestureDetector(
                         onTap: () {
                           setState(() {
-                            selectedDate = DateTime(adjustedYear, adjustedMonth, adjustedDay);
+                            selectedDate = DateTime(
+                              adjustedYear,
+                              adjustedMonth,
+                              adjustedDay,
+                            );
                           });
                         },
                         child: Container(
                           margin: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.blue : Colors.transparent,
+                            color:
+                                isSelected ? Colors.blue : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
                               day > 0 ? day.toString() : '',
                               style: TextStyle(
-                                color: isSelected
-                                    ? Colors.white
-                                    : isCurrentMonth
-                                    ? (hasEvents ? Colors.blue : Colors.black)
-                                    : Colors.grey,
-                                fontWeight: isSelected || hasEvents ? FontWeight.bold : FontWeight.normal,
+                                color:
+                                    isSelected
+                                        ? Colors.white
+                                        : isCurrentMonth
+                                        ? (hasEvents
+                                            ? Colors.blue
+                                            : Colors.black)
+                                        : Colors.grey,
+                                fontWeight:
+                                    isSelected || hasEvents
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -265,9 +303,10 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildEventsList(),
+            child:
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildEventsList(),
           ),
         ],
       ),
@@ -275,10 +314,15 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildEventsList() {
-    final dayEvents = events.where((event) =>
-    event['date'].day == selectedDate.day &&
-        event['date'].month == selectedDate.month &&
-        event['date'].year == selectedDate.year).toList();
+    final dayEvents =
+        events
+            .where(
+              (event) =>
+                  event['date'].day == selectedDate.day &&
+                  event['date'].month == selectedDate.month &&
+                  event['date'].year == selectedDate.year,
+            )
+            .toList();
 
     if (dayEvents.isEmpty) {
       return const Center(
@@ -337,7 +381,10 @@ class _CalendarPageState extends State<CalendarPage> {
                 const SizedBox(height: 4),
                 Text(
                   event['title'],
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),

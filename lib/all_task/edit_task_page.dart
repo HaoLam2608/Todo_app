@@ -5,7 +5,7 @@ import 'package:todo_list/database/task_model.dart';
 class EditTaskPage extends StatefulWidget {
   final Task task;
 
-  const EditTaskPage({Key? key, required this.task}) : super(key: key);
+  const EditTaskPage({super.key, required this.task});
 
   @override
   _EditTaskPageState createState() => _EditTaskPageState();
@@ -149,7 +149,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                   ['Work', 'Study', 'Personal']
                       .map(
                         (label) =>
-                            DropdownMenuItem(child: Text(label), value: label),
+                            DropdownMenuItem(value: label, child: Text(label)),
                       )
                       .toList(),
               onChanged: (value) => setState(() => _selectedCategory = value!),

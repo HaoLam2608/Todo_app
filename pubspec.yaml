@@ -44,6 +44,7 @@ dependencies:
   permission_handler: ^11.0.1
   flutter_iconpicker: ^4.0.0
   material_design_icons_flutter: ^5.0.6595-rc.1
+  shared_preferences: ^2.5.3
   
 
 dev_dependencies:

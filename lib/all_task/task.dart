@@ -4,21 +4,29 @@ import 'package:todo_list/user/user.dart'; // Chứa SettingsPage
 import 'package:todo_list/all_task/add_task.dart'; // Import AddTaskPage
 import 'package:todo_list/database/task_database.dart';
 import 'package:todo_list/database/task_model.dart';
+import 'package:todo_list/services/session_manager.dart';
 
 class TaskApp extends StatelessWidget {
+  const TaskApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: AllTasksPage(), debugShowCheckedModeBanner: false);
+    return MaterialApp(
+      home: TaskListScreen(),
+      debugShowCheckedModeBanner: false,
+    );
   }
 }
 
-class AllTasksPage extends StatefulWidget {
+class TaskListScreen extends StatefulWidget {
   @override
-  State<AllTasksPage> createState() => _AllTasksPageState();
+  _TaskListScreenState createState() => _TaskListScreenState();
 }
 
-class _AllTasksPageState extends State<AllTasksPage> {
+class _TaskListScreenState extends State<TaskListScreen> {
   List<Task> _tasks = [];
+  bool _isLoading = true;
+  int? _currentUserId;
 
   @override
   void initState() {
@@ -27,60 +35,66 @@ class _AllTasksPageState extends State<AllTasksPage> {
   }
 
   Future<void> _loadTasks() async {
-    final tasks = await TaskDatabase.instance.getTasks();
-    setState(() => _tasks = tasks);
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Lấy ID của người dùng hiện tại
+      _currentUserId = await SessionManager.getCurrentUserId();
+
+      if (_currentUserId != null) {
+        // Lấy task của người dùng hiện tại
+        _tasks = await TaskDatabase.instance.getTasksByUserId(_currentUserId!);
+      } else {
+        // Không có người dùng đăng nhập
+        _tasks = [];
+      }
+    } catch (e) {
+      print('Lỗi khi tải task: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AddTaskPage()),
-          );
-          _loadTasks(); // reload sau khi thêm
-        },
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.add),
+      appBar: AppBar(
+        title: Text('Danh sách Task'),
+        actions: [IconButton(icon: Icon(Icons.logout), onPressed: _logout)],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "All Tasks",
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
+      body:
+          _isLoading
+              ? Center(child: CircularProgressIndicator())
+              : _currentUserId == null
+              ? Center(child: Text('Vui lòng đăng nhập để xem task'))
+              : _tasks.isEmpty
+              ? Center(child: Text('Không có task nào'))
+              : ListView.builder(
+                itemCount: _tasks.length,
+                itemBuilder: (context, index) {
+                  final task = _tasks[index];
+                  return buildTaskCard(task);
+                },
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _tasks.isEmpty
-                    ? const Center(
-                        child: Text(
-                          "No tasks yet.",
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _tasks.length,
-                        itemBuilder: (context, index) {
-                          final task = _tasks[index];
-                          return buildTaskCard(task);
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      floatingActionButton:
+          _currentUserId != null
+              ? FloatingActionButton(
+                onPressed: () async {
+                  final result = await Navigator.pushNamed(
+                    context,
+                    '/add_task',
+                  );
+                  if (result == true) {
+                    _loadTasks(); // Tải lại danh sách sau khi thêm task
+                  }
+                },
+                child: Icon(Icons.add),
+              )
+              : null,
     );
   }
 
@@ -128,5 +142,10 @@ class _AllTasksPageState extends State<AllTasksPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _logout() async {
+    await SessionManager.logout();
+    Navigator.pushReplacementNamed(context, '/login');
   }
 }

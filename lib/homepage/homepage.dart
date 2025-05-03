@@ -27,10 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     // Initialize pages with the user passed to SettingsPage
     _pages = [
-      HomeContent(), // Trang chính
+      HomeContent(user: widget.user), // Pass user to HomeContent
       CalendarPage(), // Lịch
       AddTaskPage(), // Add (nếu cần)
-      AllTasksPage(), // Danh sách tất cả task
+      TaskListScreen(), // Danh sách tất cả task
       SettingsPage(user: widget.user), // Pass user to SettingsPage
     ];
   }
@@ -113,6 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class HomeContent extends StatefulWidget {
+  final UserModel user; // Add user parameter
+  const HomeContent({super.key, required this.user});
+
   @override
   _HomeContentState createState() => _HomeContentState();
 }
@@ -125,9 +128,9 @@ class _HomeContentState extends State<HomeContent> {
   void initState() {
     super.initState();
     loadTodayTasks();
-        _loadCategories();
-
+    _loadCategories();
   }
+
   Future<void> _loadCategories() async {
     final data = await DatabaseHelper.instance.getCategories();
     setState(() {
@@ -139,16 +142,31 @@ class _HomeContentState extends State<HomeContent> {
 
   Future<void> loadTodayTasks() async {
     final todayStr = DateTime.now().toString().split(' ')[0];
-    final tasks = await TaskDatabase.instance.getTasksByDate(todayStr);
-    final completed = await TaskDatabase.instance.getCompletedTasksByDate(
-      todayStr,
-    );
 
-    if (mounted) {
-      setState(() {
-        todaysTasks = tasks.where((t) => t.isCompleted == 0).toList();
-        completedTasks = completed;
-      });
+    // Kiểm tra xem user.id có phải là null không
+    if (widget.user.id != null) {
+      final tasks = await TaskDatabase.instance.getTasksByUserId(
+        widget.user.id!,
+      ); // Lấy task theo user ID
+      final completed = await TaskDatabase.instance.getCompletedTasksByDate(
+        todayStr,
+        widget.user.id!,
+      ); // Lấy task hoàn thành theo user ID
+
+      if (mounted) {
+        setState(() {
+          todaysTasks = tasks.where((t) => t.isCompleted == 0).toList();
+          completedTasks = completed;
+        });
+      }
+    } else {
+      // Xử lý trường hợp user.id là null (nếu cần)
+      if (mounted) {
+        setState(() {
+          todaysTasks = [];
+          completedTasks = [];
+        });
+      }
     }
   }
 
@@ -185,18 +203,18 @@ class _HomeContentState extends State<HomeContent> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             const SizedBox(height: 10),
-             Wrap(
-            spacing: 10,
-            children: [
-              for (var cat in categories)
-                _buildCategory(
-                  cat['name'],
-                  Icons.category,
-                  Color(cat['color']),
-                ),
-              _buildCategory("Add", Icons.add, Colors.grey),
-            ],
-          ),
+            Wrap(
+              spacing: 10,
+              children: [
+                for (var cat in categories)
+                  _buildCategory(
+                    cat['name'],
+                    Icons.category,
+                    Color(cat['color']),
+                  ),
+                _buildCategory("Add", Icons.add, Colors.grey),
+              ],
+            ),
             const SizedBox(height: 20),
             _buildTaskSection(
               "Today's task",
@@ -259,7 +277,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-
   Widget _buildTaskSection(String title, List<Widget> tasks) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +320,7 @@ class _HomeContentState extends State<HomeContent> {
                     (_) => AlertDialog(
                       title: const Text("Hoàn thành task này?"),
                       content: Text(
-                        "Bạn có chắc chắn muốn đánh dấu '${title}' là hoàn thành?",
+                        "Bạn có chắc chắn muốn đánh dấu '$title' là hoàn thành?",
                       ),
                       actions: [
                         TextButton(
@@ -313,6 +330,7 @@ class _HomeContentState extends State<HomeContent> {
                         TextButton(
                           onPressed: () async {
                             final updatedTask = Task(
+                              userId: task!.userId,
                               id: task!.id,
                               title: task.title,
                               category: task.category,

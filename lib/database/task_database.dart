@@ -1,3 +1,4 @@
+// lib/database/task_database.dart
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'task_model.dart';
@@ -15,20 +16,27 @@ class TaskDatabase {
   }
 
   Future<Database> _initDB(String filePath) async {
-  final dbPath = await getDatabasesPath();
-  final path = join(dbPath, filePath);
-  return await openDatabase(
-    path,
-    version: 2, // 👉 tăng version để trigger onUpgrade
-    onCreate: _createDB,
-    onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        await db.execute("ALTER TABLE tasks ADD COLUMN isCompleted INTEGER NOT NULL DEFAULT 0");
-      }
-    },
-  );
-}
-
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+    return await openDatabase(
+      path,
+      version: 3, // Tăng version lên 3 để thêm user_id
+      onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE tasks ADD COLUMN isCompleted INTEGER NOT NULL DEFAULT 0",
+          );
+        }
+        if (oldVersion < 3) {
+          // Thêm cột user_id
+          await db.execute(
+            "ALTER TABLE tasks ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0",
+          );
+        }
+      },
+    );
+  }
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
@@ -40,28 +48,37 @@ class TaskDatabase {
     time TEXT,
     reminder TEXT,
     notes TEXT,
-    isCompleted INTEGER
+    isCompleted INTEGER,
+    user_id INTEGER NOT NULL
   )
 ''');
   }
 
-  // Tạo task mới
- Future<Task> create(Task task) async {
-  final db = await instance.database;
+  // Tạo task mới - thêm user_id
+  Future<Task> create(Task task) async {
+    final db = await instance.database;
+    final id = await db.insert('tasks', task.toMap());
+    return task.copy(id: id);
+  }
 
-  final id = await db.insert('tasks', task.toMap());
-  return task.copy(id: id); // Cập nhật id mới
-}
+  // Lấy danh sách tất cả task của một user cụ thể
+  Future<List<Task>> getTasksByUserId(int userId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'tasks',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    return result.map((json) => Task.fromJson(json)).toList();
+  }
 
-
-  // Lấy danh sách tất cả task
+  // Các phương thức khác giữ nguyên
   Future<List<Task>> getTasks() async {
     final db = await instance.database;
     final result = await db.query('tasks');
     return result.map((json) => Task.fromJson(json)).toList();
   }
 
-  // Cập nhật task
   Future<int> update(Task task) async {
     final db = await instance.database;
     return await db.update(
@@ -72,37 +89,35 @@ class TaskDatabase {
     );
   }
 
-  // Đóng database
   Future close() async {
     final db = await instance.database;
     db.close();
   }
 
-  // Xoá task theo ID
   Future<int> delete(int id) async {
     final db = await instance.database;
-
     return await db.delete('tasks', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<Task>> getTasksByDate(String date) async {
+  // Cập nhật để lọc theo user_id
+  Future<List<Task>> getTasksByDate(String date, int userId) async {
     final db = await instance.database;
     final result = await db.query(
       'tasks',
-      where: 'dueDate = ?',
-      whereArgs: [date],
+      where: 'dueDate = ? AND user_id = ?',
+      whereArgs: [date, userId],
     );
-
     return result.map((json) => Task.fromJson(json)).toList();
   }
-  Future<List<Task>> getCompletedTasksByDate(String date) async {
-  final db = await instance.database;
-  final result = await db.query(
-    'tasks',
-    where: 'dueDate = ? AND isCompleted = 1',
-    whereArgs: [date],
-  );
-  return result.map((json) => Task.fromJson(json)).toList();
-}
 
+  // Cập nhật để lọc theo user_id
+  Future<List<Task>> getCompletedTasksByDate(String date, int userId) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'tasks',
+      where: 'dueDate = ? AND isCompleted = 1 AND user_id = ?',
+      whereArgs: [date, userId],
+    );
+    return result.map((json) => Task.fromJson(json)).toList();
+  }
 }

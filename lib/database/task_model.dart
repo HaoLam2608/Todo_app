@@ -7,6 +7,7 @@ class Task {
   final String reminder;
   final String notes;
   final int isCompleted; // 0 = chưa hoàn thành, 1 = đã hoàn thành
+  final int userId; // Thêm userId để liên kết với người dùng
 
   Task({
     this.id,
@@ -17,7 +18,7 @@ class Task {
     required this.reminder,
     required this.notes,
     this.isCompleted = 0,
-
+    required this.userId, // Thêm userId vào constructor
   });
 
   Map<String, dynamic> toMap() {
@@ -30,8 +31,10 @@ class Task {
       'reminder': reminder,
       'notes': notes,
       'isCompleted': isCompleted,
+      'user_id': userId, // Thêm user_id vào map
     };
   }
+
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
       id: json['id'],
@@ -42,9 +45,10 @@ class Task {
       reminder: json['reminder'],
       notes: json['notes'],
       isCompleted: json['isCompleted'] as int,
-
+      userId: json['user_id'] as int, // Đọc user_id từ json
     );
   }
+
   Task copy({
     int? id,
     String? title,
@@ -54,6 +58,7 @@ class Task {
     String? reminder,
     String? notes,
     int? isCompleted,
+    int? userId,
   }) {
     return Task(
       id: id ?? this.id,
@@ -64,6 +69,7 @@ class Task {
       reminder: reminder ?? this.reminder,
       notes: notes ?? this.notes,
       isCompleted: isCompleted ?? this.isCompleted,
+      userId: userId ?? this.userId, // Thêm userId vào copy
     );
   }
 }
