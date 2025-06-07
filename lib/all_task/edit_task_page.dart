@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:todo_list/database/category_database.dart';
 import 'package:todo_list/database/task_database.dart';
 import 'package:todo_list/database/task_model.dart';
 
@@ -14,8 +15,8 @@ class EditTaskPage extends StatefulWidget {
 class _EditTaskPageState extends State<EditTaskPage> {
   late TextEditingController _titleController;
   late TextEditingController _notesController;
-
-  String _selectedCategory = "Work";
+  List<Map<String, dynamic>> _categories = [];
+  String? _selectedCategory; // Sử dụng String? để xử lý null
   String _selectedDate = "";
   String _selectedTime = "";
   String _selectedReminder = "None";
@@ -25,10 +26,23 @@ class _EditTaskPageState extends State<EditTaskPage> {
     super.initState();
     _titleController = TextEditingController(text: widget.task.title);
     _notesController = TextEditingController(text: widget.task.notes);
-    _selectedCategory = widget.task.category;
+    _selectedCategory = widget.task.category; // Lưu giá trị từ task
     _selectedDate = widget.task.dueDate;
     _selectedTime = widget.task.time;
     _selectedReminder = widget.task.reminder;
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final data = await DatabaseHelper.instance.getCategories();
+    setState(() {
+      _categories = data;
+      // Nếu _selectedCategory không có trong danh sách, đặt giá trị mặc định
+      if (_selectedCategory != null &&
+          !_categories.map((cat) => cat['name']).contains(_selectedCategory)) {
+        _selectedCategory = _categories.isNotEmpty ? _categories[0]['name'] : null;
+      }
+    });
   }
 
   Future<void> _pickDate() async {
@@ -60,23 +74,20 @@ class _EditTaskPageState extends State<EditTaskPage> {
   void _confirmDeleteTask() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Xoá công việc"),
-            content: const Text(
-              "Bạn có chắc chắn muốn xoá công việc này không?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text("Huỷ"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text("Xoá", style: TextStyle(color: Colors.red)),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text("Xoá công việc"),
+        content: const Text("Bạn có chắc chắn muốn xoá công việc này không?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Huỷ"),
           ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text("Xoá", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true) {
@@ -91,7 +102,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
     final updatedTask = widget.task.copy(
       title: _titleController.text,
       notes: _notesController.text,
-      category: _selectedCategory,
+      category: _selectedCategory ?? 'Uncategorized',
       dueDate: _selectedDate,
       time: _selectedTime,
       reminder: _selectedReminder,
@@ -116,10 +127,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         title: const Text('Chỉnh sửa công việc'),
         actions: [
           IconButton(icon: const Icon(Icons.save), onPressed: _saveTask),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: _confirmDeleteTask,
-          ),
+          IconButton(icon: const Icon(Icons.delete), onPressed: _confirmDeleteTask),
         ],
       ),
       body: SingleChildScrollView(
@@ -144,15 +152,14 @@ class _EditTaskPageState extends State<EditTaskPage> {
             const Text("Loại công việc", style: TextStyle(color: Colors.blue)),
             const SizedBox(height: 8),
             DropdownButtonFormField(
-              value: _selectedCategory,
-              items:
-                  ['Work', 'Study', 'Personal']
-                      .map(
-                        (label) =>
-                            DropdownMenuItem(value: label, child: Text(label)),
-                      )
-                      .toList(),
-              onChanged: (value) => setState(() => _selectedCategory = value!),
+              value: _selectedCategory, // Sử dụng giá trị từ database
+              items: _categories.map((category) {
+                return DropdownMenuItem<String>(
+                  value: category['name'],
+                  child: Text(category['name']),
+                );
+              }).toList(),
+              onChanged: (value) => setState(() => _selectedCategory = value),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white,
@@ -160,6 +167,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
+              hint: const Text("Chọn loại công việc"), // Hiển thị nếu chưa có giá trị
             ),
             const SizedBox(height: 20),
             const Text("Ngày đến hạn", style: TextStyle(color: Colors.blue)),
