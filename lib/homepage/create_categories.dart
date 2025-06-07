@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_iconpicker/flutter_iconpicker.dart'
-    as FlutterIconPicker;
 import 'package:todo_list/database/category_database.dart';
 
 class CreateCategoryPage extends StatefulWidget {
@@ -14,6 +12,17 @@ class _CreateCategoryPageState extends State<CreateCategoryPage> {
   final TextEditingController _nameController = TextEditingController();
   Color selectedColor = Colors.green;
   IconData? _selectedIcon;
+
+  // Danh sách icon mẫu từ Material Icons
+  final List<IconData> _icons = [
+    Icons.home,
+    Icons.work,
+    Icons.favorite,
+    Icons.star,
+    Icons.book,
+    Icons.directions_car,
+    Icons.flight,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -43,20 +52,24 @@ class _CreateCategoryPageState extends State<CreateCategoryPage> {
             const SizedBox(height: 16),
             const Text("Category icon :"),
             const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                IconData? icon =
-                    (await FlutterIconPicker.showIconPicker(context))
-                        as IconData?;
-                if (icon != null) {
+            Wrap(
+              spacing: 10,
+              children: _icons.map((icon) => GestureDetector(
+                onTap: () {
                   setState(() {
                     _selectedIcon = icon;
                   });
-                }
-              },
-              child: const Text('Choose icon from library'),
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _selectedIcon == icon ? Colors.blueAccent : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 30, color: selectedColor),
+                ),
+              )).toList(),
             ),
-
             if (_selectedIcon != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
@@ -94,7 +107,7 @@ class _CreateCategoryPageState extends State<CreateCategoryPage> {
                       await DatabaseHelper.instance.insertCategory({
                         'name': _nameController.text,
                         'color': selectedColor.value,
-                        'icon': _selectedIcon?.codePoint,
+                        'icon': _selectedIcon?.codePoint.toString(),
                       });
                       Navigator.pop(context, true);
                     }
@@ -119,10 +132,9 @@ class _CreateCategoryPageState extends State<CreateCategoryPage> {
       child: CircleAvatar(
         backgroundColor: color,
         radius: 16,
-        child:
-            selectedColor == color
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                : null,
+        child: selectedColor == color
+            ? const Icon(Icons.check, color: Colors.white, size: 18)
+            : null,
       ),
     );
   }

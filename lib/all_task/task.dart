@@ -40,14 +40,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
 
     try {
-      // Lấy ID của người dùng hiện tại
       _currentUserId = await SessionManager.getCurrentUserId();
 
       if (_currentUserId != null) {
-        // Lấy task của người dùng hiện tại
         _tasks = await TaskDatabase.instance.getTasksByUserId(_currentUserId!);
       } else {
-        // Không có người dùng đăng nhập
         _tasks = [];
       }
     } catch (e) {
@@ -66,35 +63,32 @@ class _TaskListScreenState extends State<TaskListScreen> {
         title: Text('Danh sách Task'),
         actions: [IconButton(icon: Icon(Icons.logout), onPressed: _logout)],
       ),
-      body:
-          _isLoading
-              ? Center(child: CircularProgressIndicator())
-              : _currentUserId == null
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _currentUserId == null
               ? Center(child: Text('Vui lòng đăng nhập để xem task'))
               : _tasks.isEmpty
-              ? Center(child: Text('Không có task nào'))
-              : ListView.builder(
-                itemCount: _tasks.length,
-                itemBuilder: (context, index) {
-                  final task = _tasks[index];
-                  return buildTaskCard(task);
-                },
-              ),
-      floatingActionButton:
-          _currentUserId != null
-              ? FloatingActionButton(
-                onPressed: () async {
-                  final result = await Navigator.pushNamed(
+                  ? Center(child: Text('Không có task nào'))
+                  : ListView.builder(
+                      itemCount: _tasks.length,
+                      itemBuilder: (context, index) {
+                        final task = _tasks[index];
+                        return buildTaskCard(task);
+                      },
+                    ),
+      floatingActionButton: _currentUserId != null
+          ? FloatingActionButton(
+               onPressed: () {
+                  Navigator.push(
                     context,
-                    '/add_task',
-                  );
-                  if (result == true) {
-                    _loadTasks(); // Tải lại danh sách sau khi thêm task
-                  }
+                    MaterialPageRoute(builder: (_) => AddTaskPage()),
+                  ).then((refresh) {
+                    if (refresh == true) setState(() {});
+                  });
                 },
-                child: Icon(Icons.add),
-              )
-              : null,
+              child: Icon(Icons.add),
+            )
+          : null,
     );
   }
 

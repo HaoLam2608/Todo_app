@@ -28,7 +28,8 @@ class DatabaseHelper {
       CREATE TABLE categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        color INTEGER
+        color INTEGER, 
+        icon TEXT
       )
     ''');
   }
