@@ -20,7 +20,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late UserModel _user;
   final _picker = ImagePicker();
-  final _dbHelper = UserDatabase.instance; // Sử dụng instance Singleton
+  final _dbHelper = UserDatabase.instance;
 
   @override
   void initState() {
@@ -28,7 +28,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _user = widget.user;
   }
 
-  // Sao chép ảnh vào thư mục ứng dụng để lưu lâu dài
   Future<String> _saveImagePermanently(XFile pickedFile) async {
     final directory = await getApplicationDocumentsDirectory();
     final fileName = path.basename(pickedFile.path);
@@ -37,25 +36,41 @@ class _SettingsPageState extends State<SettingsPage> {
     return newPath;
   }
 
-  // Chọn và cập nhật avatar
   Future<void> _updateAvatar() async {
-    // Hiển thị dialog xác nhận
     final confirm = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Change Avatar'),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Change Avatar',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             content: const Text(
               'Do you want to select a new avatar from your device?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Select'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Select',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -63,7 +78,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (confirm != true) return;
 
-    // Kiểm tra và yêu cầu quyền truy cập thư viện ảnh
     final permission = await Permission.photos.request();
     if (!permission.isGranted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -103,43 +117,185 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // Chỉnh sửa tên và email
+  Future<void> _updateBackground() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Change Background',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: const Text(
+              'Do you want to select a new background image?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Select',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm != true) return;
+
+    final permission = await Permission.photos.request();
+    if (!permission.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permission to access photos denied')),
+      );
+      return;
+    }
+
+    try {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No image selected')));
+        return;
+      }
+
+      if (_user.id == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User ID is missing')));
+        return;
+      }
+
+      final backgroundPath = await _saveImagePermanently(pickedFile);
+      await _dbHelper.updateUserBackground(_user.id!, backgroundPath);
+      setState(() {
+        _user = _user.copyWith(backgroundImagePath: backgroundPath);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Background updated successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update background: $e')),
+      );
+    }
+  }
+
   Future<void> _editProfile() async {
     final nameController = TextEditingController(text: _user.username);
     final emailController = TextEditingController(text: _user.email);
     final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Edit Profile'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Username'),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Edit Profile',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Username',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.person),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: emailController,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.email),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter an email';
+                        }
+                        final emailRegex = RegExp(
+                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        );
+                        if (!emailRegex.hasMatch(value)) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.lock),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your password';
+                        }
+                        if (value != _user.password) {
+                          return 'Incorrect password';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                ),
-              ],
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () async {
-                  if (passwordController.text == _user.password) {
+                  if (formKey.currentState!.validate()) {
                     if (_user.id == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('User ID is missing')),
@@ -153,6 +309,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         emailController.text,
                         _user.password,
                         _user.avatarPath,
+                        _user.backgroundImagePath,
+                        null,
+                        null,
+                        _user.joinDate,
+                        _user.completedTasks,
+                        _user.isNotificationsEnabled,
                       );
                       setState(() {
                         _user = _user.copyWith(
@@ -171,135 +333,185 @@ class _SettingsPageState extends State<SettingsPage> {
                         SnackBar(content: Text('Failed to update profile: $e')),
                       );
                     }
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Incorrect password')),
-                    );
                   }
                 },
-                child: const Text('Save'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
     );
   }
 
-  // Đổi mật khẩu
   Future<void> _changePassword() async {
     final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Change Password'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldPasswordController,
-                  decoration: const InputDecoration(labelText: 'Old Password'),
-                  obscureText: true,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Change Password',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: oldPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Old Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your old password';
+                        }
+                        if (value != _user.password) {
+                          return 'Incorrect old password';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: newPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.lock),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a new password';
+                        }
+                        final passwordRegex = RegExp(
+                          r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$',
+                        );
+                        if (!passwordRegex.hasMatch(value)) {
+                          return 'Password must be at least 8 characters, with uppercase, lowercase, numbers, and special characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: confirmPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm Password',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.lock),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please confirm your password';
+                        }
+                        if (value != newPasswordController.text) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-                TextField(
-                  controller: newPasswordController,
-                  decoration: const InputDecoration(labelText: 'New Password'),
-                  obscureText: true,
-                ),
-                TextField(
-                  controller: confirmPasswordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm Password',
-                  ),
-                  obscureText: true,
-                ),
-              ],
+              ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () async {
-                  // Kiểm tra mật khẩu cũ
-                  if (oldPasswordController.text != _user.password) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Incorrect old password')),
-                    );
-                    return;
-                  }
-
-                  // Kiểm tra mật khẩu mới và xác nhận có khớp không
-                  if (newPasswordController.text !=
-                      confirmPasswordController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Passwords do not match')),
-                    );
-                    return;
-                  }
-
-                  // Kiểm tra tiêu chuẩn mật khẩu mạnh
-                  final passwordRegex = RegExp(
-                    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$',
-                  );
-                  if (!passwordRegex.hasMatch(newPasswordController.text)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'New password must be at least 8 characters long, including uppercase, lowercase, numbers, and special characters.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-
-                  // Kiểm tra User ID
-                  if (_user.id == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('User ID is missing')),
-                    );
-                    return;
-                  }
-
-                  try {
-                    await _dbHelper.updateUser(
-                      _user.id!,
-                      _user.username,
-                      _user.email,
-                      newPasswordController.text,
-                      _user.avatarPath,
-                    );
-                    setState(() {
-                      _user = _user.copyWith(
-                        password: newPasswordController.text,
+                  if (formKey.currentState!.validate()) {
+                    if (_user.id == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User ID is missing')),
                       );
-                    });
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password changed successfully'),
-                      ),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to change password: $e')),
-                    );
+                      return;
+                    }
+                    try {
+                      await _dbHelper.updateUser(
+                        _user.id!,
+                        _user.username,
+                        _user.email,
+                        newPasswordController.text,
+                        _user.avatarPath,
+                        _user.backgroundImagePath,
+                        null,
+                        null,
+                        _user.joinDate,
+                        _user.completedTasks,
+                        _user.isNotificationsEnabled,
+                      );
+                      setState(() {
+                        _user = _user.copyWith(
+                          password: newPasswordController.text,
+                        );
+                      });
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password changed successfully'),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to change password: $e'),
+                        ),
+                      );
+                    }
                   }
                 },
-                child: const Text('Save'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
     );
   }
 
-  // Cài đặt thông báo
   Future<void> _configureNotifications() async {
-    bool enableNotifications = true;
-    String frequency = 'Daily';
+    bool enableAppNotifications = _user.isNotificationsEnabled ?? true;
 
     await showDialog(
       context: context,
@@ -307,58 +519,76 @@ class _SettingsPageState extends State<SettingsPage> {
           (context) => StatefulBuilder(
             builder:
                 (context, setState) => AlertDialog(
-                  title: const Text('Notifications'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: const Text(
+                    'Notifications',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SwitchListTile(
-                        title: const Text('Enable Notifications'),
-                        value: enableNotifications,
+                        title: const Text('Enable App Notifications'),
+                        value: enableAppNotifications,
+                        activeColor: Colors.blue,
                         onChanged: (value) {
                           setState(() {
-                            enableNotifications = value;
+                            enableAppNotifications = value;
                           });
                         },
-                      ),
-                      DropdownButtonFormField<String>(
-                        value: frequency,
-                        items:
-                            ['Daily', 'Weekly', 'Monthly']
-                                .map(
-                                  (e) => DropdownMenuItem(
-                                    value: e,
-                                    child: Text(e),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            frequency = value!;
-                          });
-                        },
-                        decoration: const InputDecoration(
-                          labelText: 'Frequency',
-                        ),
                       ),
                     ],
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
-                    TextButton(
-                      onPressed: () {
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (_user.id == null) return;
+                        await _dbHelper.updateUser(
+                          _user.id!,
+                          _user.username,
+                          _user.email,
+                          _user.password,
+                          _user.avatarPath,
+                          _user.backgroundImagePath,
+                          null,
+                          null,
+                          _user.joinDate,
+                          _user.completedTasks,
+                          enableAppNotifications,
+                        );
+                        setState(() {
+                          _user = _user.copyWith(
+                            isNotificationsEnabled: enableAppNotifications,
+                          );
+                        });
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Notifications: ${enableNotifications ? 'Enabled' : 'Disabled'}, Frequency: $frequency',
+                              'App Notifications: ${enableAppNotifications ? 'Enabled' : 'Disabled'}',
                             ),
                           ),
                         );
                       },
-                      child: const Text('Save'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
@@ -366,22 +596,181 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // Đăng xuất
+  Future<void> _deleteAccount() async {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Delete Account',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'This action cannot be undone. Please enter your password to confirm.',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.lock),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      if (value != _user.password) {
+                        return 'Incorrect password';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    if (_user.id == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User ID is missing')),
+                      );
+                      return;
+                    }
+                    try {
+                      await _dbHelper.deleteUser(_user.id!);
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                        (route) => false,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Account deleted successfully'),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to delete account: $e')),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _showUserStats() async {
+    await showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'User Stats',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Username: ${_user.username}'),
+                Text('Join Date: ${_user.joinDate ?? 'Unknown'}'),
+                Text('Completed Tasks: ${_user.completedTasks ?? 0}'),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Log out'),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Log out',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             content: const Text('Are you sure you want to log out?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Log out'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Log out',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -401,14 +790,14 @@ class _SettingsPageState extends State<SettingsPage> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.blue, Colors.lightBlue],
+            colors: [Colors.blue, Colors.lightBlueAccent],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -416,99 +805,144 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Text(
                     "Settings",
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 28,
                       color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
                 Card(
-                  elevation: 4,
+                  elevation: 6,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: _updateAvatar,
-                          child: CircleAvatar(
-                            radius: 30,
-                            backgroundColor: Colors.white,
-                            backgroundImage:
-                                _user.avatarPath != null
-                                    ? FileImage(File(_user.avatarPath!))
-                                    : null,
-                            child:
-                                _user.avatarPath == null
-                                    ? const Icon(
-                                      Icons.person,
-                                      color: Colors.grey,
-                                    )
-                                    : null,
+                  child: Stack(
+                    children: [
+                      if (_user.backgroundImagePath != null)
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.file(
+                              File(_user.backgroundImagePath!),
+                              fit: BoxFit.cover,
+                              color: Colors.black.withOpacity(0.3),
+                              colorBlendMode: BlendMode.darken,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
                           children: [
-                            Text(
-                              _user.username,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                            GestureDetector(
+                              onTap: _updateAvatar,
+                              child: CircleAvatar(
+                                radius: 40,
+                                backgroundColor: Colors.grey[200],
+                                backgroundImage:
+                                    _user.avatarPath != null
+                                        ? FileImage(File(_user.avatarPath!))
+                                        : null,
+                                child:
+                                    _user.avatarPath == null
+                                        ? const Icon(
+                                          Icons.person,
+                                          size: 40,
+                                          color: Colors.grey,
+                                        )
+                                        : null,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _user.email,
-                              style: const TextStyle(color: Colors.black54),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _user.username,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _user.email,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 const Text(
                   "Customize",
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 buildSettingsButton(
                   "Edit Profile",
                   icon: Icons.edit,
                   onPressed: _editProfile,
                 ),
-                const Divider(color: Colors.white54),
+                const SizedBox(height: 8),
+                buildSettingsButton(
+                  "Change Background",
+                  icon: Icons.image,
+                  onPressed: _updateBackground,
+                ),
+                const SizedBox(height: 8),
                 buildSettingsButton(
                   "Notifications",
                   icon: Icons.notifications,
                   onPressed: _configureNotifications,
                 ),
-                const Divider(color: Colors.white54),
+                const SizedBox(height: 8),
+                // Removed "Theme Preference" button
+                const SizedBox(height: 8),
+                // Removed "Language" button
+                const SizedBox(height: 8),
                 buildSettingsButton(
                   "Change Password",
                   icon: Icons.lock,
                   onPressed: _changePassword,
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 const Text(
                   "Account",
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                buildSettingsButton(
+                  "User Stats",
+                  icon: Icons.bar_chart,
+                  onPressed: _showUserStats,
+                ),
+                const SizedBox(height: 8),
+                buildSettingsButton(
+                  "Delete Account",
+                  icon: Icons.delete_forever,
+                  onPressed: _deleteAccount,
+                ),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
                   child: ElevatedButton(
@@ -517,16 +951,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         horizontal: 24,
                         vertical: 14,
                       ),
-                      backgroundColor: Colors.red[100],
-                      foregroundColor: Colors.red,
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: 4,
                     ),
                     onPressed: _logout,
                     child: const Text(
                       "Log out",
-                      style: TextStyle(fontSize: 16),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -544,22 +982,31 @@ class _SettingsPageState extends State<SettingsPage> {
     VoidCallback? onPressed,
   }) {
     return Card(
-      elevation: 2,
+      elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: onPressed != null ? Colors.white : Colors.grey[200],
+          ),
           child: Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, color: Colors.blue),
-                const SizedBox(width: 12),
+                Icon(icon, color: Colors.blue, size: 28),
+                const SizedBox(width: 16),
               ],
               Text(
                 label,
-                style: const TextStyle(fontSize: 16, color: Colors.black),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
               ),
             ],
           ),
