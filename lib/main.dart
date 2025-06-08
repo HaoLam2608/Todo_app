@@ -3,9 +3,10 @@ import 'services/session_manager.dart';
 import 'login/login_screen.dart';
 import 'package:todo_list/homepage/homepage.dart';
 import 'database/user_model.dart'; // Import UserModel
-
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Khởi tạo Firebase
   runApp(const MyApp());
 }
 

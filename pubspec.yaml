@@ -45,7 +45,8 @@ dependencies:
   flutter_iconpicker: 3.2.4
   material_design_icons_flutter: ^5.0.6595-rc.1
   shared_preferences: ^2.5.3
-  
+  firebase_core: ^3.13.1
+  cloud_firestore: ^5.6.8
 
 dev_dependencies:
   flutter_test:

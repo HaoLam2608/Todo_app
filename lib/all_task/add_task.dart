@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:todo_list/database/category_database.dart';
 import 'package:todo_list/database/task_model.dart';
@@ -8,11 +9,31 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_init;
 
 final FlutterLocalNotificationsPlugin flutterNotificationPlugin =
-    FlutterLocalNotificationsPlugin();
+FlutterLocalNotificationsPlugin();
+
+Future<void> addTodo(String title, String note, DateTime dueDate, String category) async {
+  try {
+    final uid = await SessionManager.getCurrentUserId();
+    if (uid == null) {
+      throw Exception('User not logged in');
+    }
+
+    await FirebaseFirestore.instance.collection("todos").add({
+      "title": title,
+      "note": note,
+      "dueDate": dueDate.toIso8601String(),
+      "category": category,
+      "userId": uid,
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    throw Exception('Failed to add todo: $e');
+  }
+}
 
 Future<void> initNotifications() async {
   const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+  AndroidInitializationSettings('@mipmap/ic_launcher');
 
   final InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
@@ -23,37 +44,52 @@ Future<void> initNotifications() async {
     onDidReceiveNotificationResponse: (NotificationResponse response) {},
   );
 
+  // Request notification permission
+  await flutterNotificationPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+
+  // Request exact alarm permission for Android 12+
+  await flutterNotificationPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestExactAlarmsPermission();
+
   tz_init.initializeTimeZones();
 }
 
 Future<void> scheduleTaskReminder(
-  int id,
-  String title,
-  String note,
-  DateTime scheduleDate,
-) async {
-  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-    'task_reminder_channel',
-    'Task Reminders',
-    channelDescription: 'Channel for Task app reminders',
-    importance: Importance.max,
-    priority: Priority.high,
-  );
+    int id,
+    String title,
+    String note,
+    DateTime scheduleDate,
+    ) async {
+  try {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'task_reminder_channel',
+      'Task Reminders',
+      channelDescription: 'Channel for Task app reminders',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
 
-  const NotificationDetails platformDetails = NotificationDetails(
-    android: androidDetails,
-  );
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+    );
 
-  await flutterNotificationPlugin.zonedSchedule(
-    id,
-    'Nhắc nhở: $title',
-    note.isEmpty ? 'Đã đến hạn hoàn thành nhiệm vụ này' : note,
-    tz.TZDateTime.from(scheduleDate, tz.local),
-    platformDetails,
-    androidAllowWhileIdle: true,
-    uiLocalNotificationDateInterpretation:
-        UILocalNotificationDateInterpretation.absoluteTime,
-  );
+    await flutterNotificationPlugin.zonedSchedule(
+      id,
+      'Nhắc nhở: $title',
+      note.isEmpty ? 'Đã đến hạn hoàn thành nhiệm vụ này' : note,
+      tz.TZDateTime.from(scheduleDate, tz.local),
+      platformDetails,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation:
+      UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  } catch (e) {
+    print('Lỗi khi đặt lịch nhắc nhở: $e');
+    // Không throw error để không ảnh hưởng đến việc tạo task
+  }
 }
 
 class AddTaskPage extends StatefulWidget {
@@ -67,11 +103,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final titleController = TextEditingController();
   final notesController = TextEditingController();
   List<Map<String, dynamic>> categories = [];
-  String? selectedCategory; // Thay bằng String? và khởi tạo null
+  String? selectedCategory;
   String selectedDate = "Set due date";
   String selectedTime = "Set Time";
   String selectedReminder = "No reminder";
   bool reminderEnabled = false;
+  bool isLoading = false;
 
   DateTime? dueDateTime;
   DateTime? reminderDateTime;
@@ -85,36 +122,96 @@ class _AddTaskPageState extends State<AddTaskPage> {
     loadCategories();
   }
 
-  Future<void> loadCategories() async {
-    final data = await DatabaseHelper.instance.getCategories();
-    setState(() {
-      categories = data;
-      // Nếu có categories, đặt giá trị mặc định là category đầu tiên
-      if (categories.isNotEmpty) {
-        selectedCategory = categories[0]['name'];
-      }
-    });
+  @override
+  void dispose() {
+    titleController.dispose();
+    notesController.dispose();
+    super.dispose();
   }
 
-  void _updateReminderDateTime() {
-    if (dueDateTime != null) {
-      if (selectedReminder == "10 minutes before") {
-        reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 10));
-      } else if (selectedReminder == "30 minutes before") {
-        reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 30));
-      } else if (selectedReminder == "1 hour before") {
-        reminderDateTime = dueDateTime!.subtract(const Duration(hours: 1));
-      } else if (selectedReminder == "1 day before") {
-        reminderDateTime = dueDateTime!.subtract(const Duration(days: 1));
-      } else if (selectedReminder.startsWith("Custom:")) {
-        // Custom reminder logic
-      } else {
-        reminderDateTime = null;
+  Future<void> loadCategories() async {
+    try {
+      final data = await DatabaseHelper.instance.getCategories();
+      setState(() {
+        categories = data;
+        if (categories.isNotEmpty) {
+          selectedCategory = categories[0]['name'];
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi tải danh mục: $e')),
+        );
       }
     }
   }
 
+  void _updateDueDateTime() {
+    if (selectedDate != "Set due date" && selectedTime != "Set Time") {
+      try {
+        final dateComponents = selectedDate.split("-");
+        final timeComponents = selectedTime.split(":");
+
+        final year = int.parse(dateComponents[0]);
+        final month = int.parse(dateComponents[1]);
+        final day = int.parse(dateComponents[2]);
+        final hour = int.parse(timeComponents[0]);
+        final minute = int.parse(timeComponents[1]);
+
+        dueDateTime = DateTime(year, month, day, hour, minute);
+        _updateReminderDateTime();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Định dạng ngày giờ không hợp lệ')),
+        );
+      }
+    }
+  }
+
+  void _updateReminderDateTime() {
+    if (dueDateTime != null && reminderEnabled) {
+      switch (selectedReminder) {
+        case "10 minutes before":
+          reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 10));
+          break;
+        case "30 minutes before":
+          reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 30));
+          break;
+        case "1 hour before":
+          reminderDateTime = dueDateTime!.subtract(const Duration(hours: 1));
+          break;
+        case "1 day before":
+          reminderDateTime = dueDateTime!.subtract(const Duration(days: 1));
+          break;
+        default:
+          if (selectedReminder.startsWith("Custom:")) {
+            // reminderDateTime đã được set trong _setCustomReminder
+            return;
+          }
+          reminderDateTime = null;
+      }
+
+      // Kiểm tra nếu reminder time đã qua
+      if (reminderDateTime != null && reminderDateTime!.isBefore(DateTime.now())) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thời gian nhắc nhở đã qua, vui lòng chọn lại')),
+        );
+        setState(() {
+          reminderEnabled = false;
+          selectedReminder = "No reminder";
+          reminderDateTime = null;
+        });
+      }
+    } else {
+      reminderDateTime = null;
+    }
+  }
+
   void _showCustomReminderDialog() {
+    String tempDate = customReminderDate;
+    String tempTime = customReminderTime;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -126,24 +223,24 @@ class _AddTaskPageState extends State<AddTaskPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.calendar_today),
-                  title: Text(customReminderDate),
+                  title: Text(tempDate),
                   onTap: () async {
                     DateTime? picked = await showDatePicker(
                       context: context,
                       initialDate: DateTime.now(),
-                      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                      firstDate: DateTime.now(),
                       lastDate: dueDateTime ?? DateTime.now().add(const Duration(days: 365)),
                     );
-                    setDialogState(() {
-                      if (picked != null) {
-                        customReminderDate = picked.toLocal().toString().split(' ')[0];
-                      }
-                    });
+                    if (picked != null) {
+                      setDialogState(() {
+                        tempDate = picked.toLocal().toString().split(' ')[0];
+                      });
+                    }
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.access_time),
-                  title: Text(customReminderTime),
+                  title: Text(tempTime),
                   onTap: () async {
                     TimeOfDay? pickedTime = await showTimePicker(
                       context: context,
@@ -151,7 +248,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     );
                     if (pickedTime != null) {
                       setDialogState(() {
-                        customReminderTime = "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
+                        tempTime = "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
                       });
                     }
                   },
@@ -165,7 +262,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               ),
               TextButton(
                 onPressed: () {
-                  _setCustomReminder(customReminderDate, customReminderTime);
+                  _setCustomReminder(tempDate, tempTime);
                   Navigator.pop(context);
                 },
                 child: const Text("Set"),
@@ -178,35 +275,180 @@ class _AddTaskPageState extends State<AddTaskPage> {
   }
 
   void _setCustomReminder(String dateStr, String timeStr) {
-    if (dateStr != "Select date" && timeStr != "Select time") {
-      try {
-        final dateComponents = dateStr.split("-");
-        final timeComponents = timeStr.split(":");
+    if (dateStr == "Select date" || timeStr == "Select time") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn đầy đủ ngày và giờ')),
+      );
+      return;
+    }
 
-        final year = int.parse(dateComponents[0]);
-        final month = int.parse(dateComponents[1]);
-        final day = int.parse(dateComponents[2]);
+    try {
+      final dateComponents = dateStr.split("-");
+      final timeComponents = timeStr.split(":");
 
-        final hour = int.parse(timeComponents[0]);
-        final minute = int.parse(timeComponents[1]);
+      final year = int.parse(dateComponents[0]);
+      final month = int.parse(dateComponents[1]);
+      final day = int.parse(dateComponents[2]);
+      final hour = int.parse(timeComponents[0]);
+      final minute = int.parse(timeComponents[1]);
 
-        final customDateTime = DateTime(year, month, day, hour, minute);
+      final customDateTime = DateTime(year, month, day, hour, minute);
 
-        if (dueDateTime != null && customDateTime.isAfter(dueDateTime!)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Thời gian nhắc nhở phải trước thời hạn')),
-          );
-          return;
-        }
-
-        setState(() {
-          reminderDateTime = customDateTime;
-          selectedReminder = "Custom: $dateStr $timeStr";
-        });
-      } catch (e) {
+      // Kiểm tra thời gian không được ở quá khứ
+      if (customDateTime.isBefore(DateTime.now())) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Định dạng ngày giờ không hợp lệ')),
+          const SnackBar(content: Text('Thời gian nhắc nhở không thể ở quá khứ')),
         );
+        return;
+      }
+
+      // Kiểm tra thời gian nhắc nhở phải trước thời hạn
+      if (dueDateTime != null && customDateTime.isAfter(dueDateTime!)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thời gian nhắc nhở phải trước thời hạn')),
+        );
+        return;
+      }
+
+      setState(() {
+        reminderDateTime = customDateTime;
+        selectedReminder = "Custom: $dateStr $timeStr";
+        customReminderDate = dateStr;
+        customReminderTime = timeStr;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Định dạng ngày giờ không hợp lệ')),
+      );
+    }
+  }
+
+  Future<void> _saveTask() async {
+    if (isLoading) return;
+
+    // Validation
+    if (titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập tiêu đề')),
+      );
+      return;
+    }
+
+    if (selectedDate == "Set due date" || selectedTime == "Set Time") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn ngày và giờ')),
+      );
+      return;
+    }
+
+    if (selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn danh mục')),
+      );
+      return;
+    }
+
+    // Đảm bảo dueDateTime được tạo
+    _updateDueDateTime();
+
+    if (dueDateTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lỗi: Không thể xác định thời gian')),
+      );
+      return;
+    }
+
+    // Kiểm tra thời gian không được ở quá khứ
+    if (dueDateTime!.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thời gian hoàn thành không thể ở quá khứ')),
+      );
+      return;
+    }
+
+    final userId = await SessionManager.getCurrentUserId();
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng đăng nhập để thêm task')),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final newTask = Task(
+        title: titleController.text.trim(),
+        category: selectedCategory!,
+        dueDate: selectedDate,
+        time: selectedTime,
+        reminder: reminderEnabled ? selectedReminder : "No reminder",
+        notes: notesController.text.trim(),
+        userId: userId,
+      );
+
+      // Lưu task vào database local
+      final savedTask = await TaskDatabase.instance.create(newTask);
+
+      // Lấy taskId từ saved task (giả sử Task model có id property)
+      final taskId = savedTask.id ?? DateTime.now().millisecondsSinceEpoch;
+
+      // Lưu vào Firestore
+      await addTodo(
+        titleController.text.trim(),
+        notesController.text.trim(),
+        dueDateTime!,
+        selectedCategory!,
+      );
+
+      // Đặt lịch nhắc nhở nếu được bật
+      if (reminderEnabled && reminderDateTime != null) {
+        try {
+          await scheduleTaskReminder(
+            taskId,
+            titleController.text.trim(),
+            notesController.text.trim(),
+            reminderDateTime!,
+          );
+        } catch (e) {
+          // Hiển thị cảnh báo nhưng vẫn cho phép tạo task
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Task đã được tạo nhưng không thể đặt nhắc nhở. Vui lòng cấp quyền notification.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Task đã được thêm thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi lưu task: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
       }
     }
   }
@@ -233,10 +475,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Text(
+                    onTap: isLoading ? null : () => Navigator.pop(context),
+                    child: Text(
                       "Cancel",
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(
+                        color: isLoading ? Colors.grey : Colors.red,
+                      ),
                     ),
                   ),
                 ],
@@ -244,6 +488,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               const SizedBox(height: 20),
               TextField(
                 controller: titleController,
+                enabled: !isLoading,
                 decoration: const InputDecoration(
                   hintText: "Finish Report",
                   filled: true,
@@ -254,21 +499,21 @@ class _AddTaskPageState extends State<AddTaskPage> {
               const SizedBox(height: 20),
               const Text("Category", style: TextStyle(color: Colors.blue)),
               const SizedBox(height: 6),
-              DropdownButtonFormField(
-                value: selectedCategory, // Sử dụng giá trị null nếu chưa chọn
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
                 decoration: const InputDecoration(
                   filled: true,
                   fillColor: Colors.lightBlueAccent,
                   border: InputBorder.none,
                 ),
-                hint: const Text("Select a category"), // Hiển thị hint nếu chưa chọn
+                hint: const Text("Select a category"),
                 items: categories.map((category) {
                   return DropdownMenuItem<String>(
                     value: category['name'],
                     child: Text(category['name']),
                   );
                 }).toList(),
-                onChanged: (value) {
+                onChanged: isLoading ? null : (value) {
                   setState(() {
                     selectedCategory = value;
                   });
@@ -279,30 +524,18 @@ class _AddTaskPageState extends State<AddTaskPage> {
               ListTile(
                 leading: const Icon(Icons.calendar_today, color: Colors.orange),
                 title: Text(selectedDate),
-                onTap: () async {
+                enabled: !isLoading,
+                onTap: isLoading ? null : () async {
                   DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
+                    firstDate: DateTime.now(),
                     lastDate: DateTime(2101),
                   );
                   if (picked != null) {
                     setState(() {
                       selectedDate = picked.toLocal().toString().split(' ')[0];
-                      if (selectedTime != "Set Time") {
-                        final timeComponents = selectedTime.split(":");
-                        final hour = int.parse(timeComponents[0]);
-                        final minute = int.parse(timeComponents[1]);
-
-                        dueDateTime = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                          hour,
-                          minute,
-                        );
-                        _updateReminderDateTime();
-                      }
+                      _updateDueDateTime();
                     });
                   }
                 },
@@ -310,7 +543,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
               ListTile(
                 leading: const Icon(Icons.access_time, color: Colors.orange),
                 title: Text(selectedTime),
-                onTap: () async {
+                enabled: !isLoading,
+                onTap: isLoading ? null : () async {
                   TimeOfDay? pickedTime = await showTimePicker(
                     context: context,
                     initialTime: TimeOfDay.now(),
@@ -318,22 +552,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   if (pickedTime != null) {
                     setState(() {
                       selectedTime =
-                          "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
-                      if (selectedDate != "Set due date") {
-                        final dateComponents = selectedDate.split("-");
-                        final year = int.parse(dateComponents[0]);
-                        final month = int.parse(dateComponents[1]);
-                        final day = int.parse(dateComponents[2]);
-
-                        dueDateTime = DateTime(
-                          year,
-                          month,
-                          day,
-                          pickedTime.hour,
-                          pickedTime.minute,
-                        );
-                        _updateReminderDateTime();
-                      }
+                      "${pickedTime.hour}:${pickedTime.minute.toString().padLeft(2, '0')}";
+                      _updateDueDateTime();
                     });
                   }
                 },
@@ -345,7 +565,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   const Spacer(),
                   Switch(
                     value: reminderEnabled,
-                    onChanged: (value) {
+                    onChanged: isLoading ? null : (value) {
                       setState(() {
                         reminderEnabled = value;
                         if (!value) {
@@ -364,7 +584,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 ListTile(
                   leading: const Icon(Icons.notifications, color: Colors.red),
                   title: Text(selectedReminder),
-                  onTap: () {
+                  enabled: !isLoading,
+                  onTap: isLoading ? null : () {
                     showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
@@ -432,6 +653,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               const Text("Notes", style: TextStyle(color: Colors.blue)),
               TextField(
                 controller: notesController,
+                enabled: !isLoading,
                 maxLines: 4,
                 decoration: const InputDecoration(
                   hintText: "Make sure to research from internet",
@@ -445,56 +667,18 @@ class _AddTaskPageState extends State<AddTaskPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          if (titleController.text.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Vui lòng nhập tiêu đề')),
-            );
-            return;
-          }
-
-          if (selectedDate == "Set due date" || selectedTime == "Set Time") {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Vui lòng chọn ngày và giờ')),
-            );
-            return;
-          }
-
-          final userId = await SessionManager.getCurrentUserId();
-          if (userId == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Vui lòng đăng nhập để thêm task')),
-            );
-            return;
-          }
-
-          final newTask = Task(
-            title: titleController.text,
-            category: selectedCategory ?? 'Uncategorized',
-            dueDate: selectedDate,
-            time: selectedTime,
-            reminder: reminderEnabled ? selectedReminder : "No reminder",
-            notes: notesController.text,
-            userId: userId,
-          );
-
-          final taskId = await TaskDatabase.instance.create(newTask);
-
-          if (reminderEnabled && reminderDateTime != null) {
-            await scheduleTaskReminder(
-              taskId as int,
-              titleController.text,
-              notesController.text,
-              reminderDateTime!,
-            );
-          }
-
-          if (!mounted) return;
-
-          Navigator.pop(context, true);
-        },
-        backgroundColor: Colors.blue,
-        child: const Icon(Icons.check),
+        onPressed: isLoading ? null : _saveTask,
+        backgroundColor: isLoading ? Colors.grey : Colors.blue,
+        child: isLoading
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : const Icon(Icons.check),
       ),
     );
   }
