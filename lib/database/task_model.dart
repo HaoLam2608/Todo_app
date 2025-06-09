@@ -6,8 +6,9 @@ class Task {
   final String time;
   final String reminder;
   final String notes;
-  final int isCompleted; // 0 = chưa hoàn thành, 1 = đã hoàn thành
-  final int userId; // Thêm userId để liên kết với người dùng
+  final int isCompleted;
+  final int userId;
+  final DateTime? completionTime;
 
   Task({
     this.id,
@@ -18,7 +19,8 @@ class Task {
     required this.reminder,
     required this.notes,
     this.isCompleted = 0,
-    required this.userId, // Thêm userId vào constructor
+    required this.userId,
+    this.completionTime,
   });
 
   Map<String, dynamic> toMap() {
@@ -31,7 +33,8 @@ class Task {
       'reminder': reminder,
       'notes': notes,
       'isCompleted': isCompleted,
-      'user_id': userId, // Thêm user_id vào map
+      'user_id': userId,
+      'completionTime': completionTime?.toIso8601String(), // Thêm vào map
     };
   }
 
@@ -45,7 +48,11 @@ class Task {
       reminder: json['reminder'],
       notes: json['notes'],
       isCompleted: json['isCompleted'] as int,
-      userId: json['user_id'] as int, // Đọc user_id từ json
+      userId: json['user_id'] as int,
+      completionTime:
+          json['completionTime'] != null
+              ? DateTime.parse(json['completionTime'])
+              : null, // Parse completionTime
     );
   }
 
@@ -59,6 +66,7 @@ class Task {
     String? notes,
     int? isCompleted,
     int? userId,
+    DateTime? completionTime,
   }) {
     return Task(
       id: id ?? this.id,
@@ -69,7 +77,8 @@ class Task {
       reminder: reminder ?? this.reminder,
       notes: notes ?? this.notes,
       isCompleted: isCompleted ?? this.isCompleted,
-      userId: userId ?? this.userId, // Thêm userId vào copy
+      userId: userId ?? this.userId,
+      completionTime: completionTime ?? this.completionTime, // Thêm vào copy
     );
   }
 }

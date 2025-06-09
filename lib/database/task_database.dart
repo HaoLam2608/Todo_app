@@ -120,4 +120,23 @@ class TaskDatabase {
     );
     return result.map((json) => Task.fromJson(json)).toList();
   }
+
+  // Trong task_database.dart
+  Future<List<Task>> getTasksByUserIdAndDateRange(
+    int userId,
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'tasks',
+      where: 'user_id = ? AND dueDate BETWEEN ? AND ?',
+      whereArgs: [
+        userId,
+        startDate.toIso8601String().split('T')[0],
+        endDate.toIso8601String().split('T')[0],
+      ],
+    );
+    return result.map((json) => Task.fromJson(json)).toList();
+  }
 }

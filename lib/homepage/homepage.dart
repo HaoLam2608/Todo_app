@@ -54,25 +54,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      floatingActionButton: _selectedIndex == 3
-          ? null
-          : SizedBox(
-              height: 72,
-              width: 72,
-              child: FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => AddTaskPage()),
-                  ).then((refresh) {
-                    if (refresh == true) setState(() {});
-                  });
-                },
-                backgroundColor: Colors.blue,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add, size: 36),
+      floatingActionButton:
+          _selectedIndex == 3
+              ? null
+              : SizedBox(
+                height: 72,
+                width: 72,
+                child: FloatingActionButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AddTaskPage()),
+                    ).then((refresh) {
+                      if (refresh == true) setState(() {});
+                    });
+                  },
+                  backgroundColor: Colors.blue,
+                  shape: const CircleBorder(),
+                  child: const Icon(Icons.add, size: 36),
+                ),
               ),
-            ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
@@ -81,20 +82,21 @@ class _HomeScreenState extends State<HomeScreen> {
           height: 60,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _selectedIndex == 3
-                ? [
-                    _buildNavIcon(Icons.home, 0),
-                    _buildNavIcon(Icons.calendar_today, 1),
-                    _buildNavIcon(Icons.insert_drive_file, 3),
-                    _buildNavIcon(Icons.settings, 4),
-                  ]
-                : [
-                    _buildNavIcon(Icons.home, 0),
-                    _buildNavIcon(Icons.calendar_today, 1),
-                    const SizedBox(width: 10),
-                    _buildNavIcon(Icons.insert_drive_file, 3),
-                    _buildNavIcon(Icons.settings, 4),
-                  ],
+            children:
+                _selectedIndex == 3
+                    ? [
+                      _buildNavIcon(Icons.home, 0),
+                      _buildNavIcon(Icons.calendar_today, 1),
+                      _buildNavIcon(Icons.insert_drive_file, 3),
+                      _buildNavIcon(Icons.settings, 4),
+                    ]
+                    : [
+                      _buildNavIcon(Icons.home, 0),
+                      _buildNavIcon(Icons.calendar_today, 1),
+                      const SizedBox(width: 10),
+                      _buildNavIcon(Icons.insert_drive_file, 3),
+                      _buildNavIcon(Icons.settings, 4),
+                    ],
           ),
         ),
       ),
@@ -119,12 +121,27 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> {
+  TextEditingController _searchController = TextEditingController();
   List<Task> todaysTasks = [];
+  List<Task> filteredTasks = [];
   List<Map<String, dynamic>> categories = [];
+  List<Task> completedTasks = [];
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        filteredTasks =
+            todaysTasks
+                .where(
+                  (task) => task.title.toLowerCase().contains(
+                    _searchController.text.toLowerCase(),
+                  ),
+                )
+                .toList();
+      });
+    });
     loadTodayTasks();
     _loadCategories();
   }
@@ -139,26 +156,42 @@ class _HomeContentState extends State<HomeContent> {
     });
   }
 
-  List<Task> completedTasks = [];
-
   Future<void> loadTodayTasks() async {
-    final todayStr = DateTime.now().toString().split(' ')[0];
+    final todayStr =
+        DateTime.now().toIso8601String().split(
+          'T',
+        )[0]; // Đảm bảo định dạng yyyy-MM-dd
+    print('Loading tasks for date: $todayStr, userId: ${widget.user.id}');
 
     if (widget.user.id != null) {
-      final tasks = await TaskDatabase.instance.getTasksByUserId(widget.user.id!);
-      final completed = await TaskDatabase.instance.getCompletedTasksByDate(todayStr, widget.user.id!);
+      final allTasks = await TaskDatabase.instance.getTasksByUserId(
+        widget.user.id!,
+      );
+      final completed = await TaskDatabase.instance.getCompletedTasksByDate(
+        todayStr,
+        widget.user.id!,
+      );
 
       if (mounted) {
         setState(() {
-          todaysTasks = tasks.where((t) => t.isCompleted == 0).toList();
+          // Lọc chỉ các nhiệm vụ có dueDate bằng ngày hôm nay và chưa hoàn thành
+          todaysTasks =
+              allTasks
+                  .where((t) => t.dueDate == todayStr && t.isCompleted == 0)
+                  .toList();
           completedTasks = completed;
+          filteredTasks = todaysTasks; // Reset filtered tasks
         });
+        print(
+          'Todays Tasks: ${todaysTasks.length}, Completed Tasks: ${completedTasks.length}',
+        );
       }
     } else {
       if (mounted) {
         setState(() {
           todaysTasks = [];
           completedTasks = [];
+          filteredTasks = [];
         });
       }
     }
@@ -175,6 +208,7 @@ class _HomeContentState extends State<HomeContent> {
         title: Padding(
           padding: const EdgeInsets.only(top: 30),
           child: TextField(
+            controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search for Tasks, Events',
               prefixIcon: const Icon(Icons.search),
@@ -204,7 +238,10 @@ class _HomeContentState extends State<HomeContent> {
                   _buildCategory(
                     cat['name'],
                     cat['icon'] != null
-                        ? IconData(int.parse(cat['icon']), fontFamily: 'MaterialIcons')
+                        ? IconData(
+                          int.parse(cat['icon']),
+                          fontFamily: 'MaterialIcons',
+                        )
                         : Icons.category,
                     Color(cat['color']),
                   ),
@@ -214,23 +251,35 @@ class _HomeContentState extends State<HomeContent> {
             const SizedBox(height: 20),
             _buildTaskSection(
               "Today's task",
-              todaysTasks
-                  .map(
-                    (task) => _buildTaskItem(
-                      task.title,
-                      task.time,
-                      false,
-                      task: task,
-                    ),
-                  )
-                  .toList(),
+              _searchController.text.isNotEmpty
+                  ? filteredTasks
+                      .map(
+                        (task) => _buildTaskItem(
+                          task.title,
+                          task.time,
+                          false,
+                          task: task,
+                        ),
+                      )
+                      .toList()
+                  : todaysTasks
+                      .map(
+                        (task) => _buildTaskItem(
+                          task.title,
+                          task.time,
+                          false,
+                          task: task,
+                        ),
+                      )
+                      .toList(),
             ),
             const SizedBox(height: 20),
             _buildTaskSection(
               "Completed task",
               completedTasks
                   .map(
-                    (task) => _buildTaskItem(task.title, task.time, true, task: task),
+                    (task) =>
+                        _buildTaskItem(task.title, task.time, true, task: task),
                   )
                   .toList(),
             ),
@@ -263,7 +312,9 @@ class _HomeContentState extends State<HomeContent> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            title == "Add" ? Icon(icon, color: color) : Icon(icon, color: color), // Sử dụng Icon thay FaIcon
+            title == "Add"
+                ? Icon(icon, color: color)
+                : Icon(icon, color: color),
             const SizedBox(height: 8),
             Text(title, style: const TextStyle(fontSize: 12)),
           ],
@@ -308,40 +359,31 @@ class _HomeContentState extends State<HomeContent> {
             color: completed ? Colors.green : Colors.grey,
           ),
           onPressed: () {
-            if (!completed) {
+            if (!completed && task != null) {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text("Hoàn thành task này?"),
-                  content: Text(
-                    "Bạn có chắc chắn muốn đánh dấu '$title' là hoàn thành?",
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Huỷ"),
+                builder:
+                    (_) => AlertDialog(
+                      title: const Text("Hoàn thành task này?"),
+                      content: Text(
+                        "Bạn có chắc chắn muốn đánh dấu '$title' là hoàn thành?",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Huỷ"),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final updatedTask = task.copy(isCompleted: 1);
+                            await TaskDatabase.instance.update(updatedTask);
+                            Navigator.pop(context);
+                            await loadTodayTasks(); // Làm mới danh sách
+                          },
+                          child: const Text("Xác nhận"),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () async {
-                        final updatedTask = Task(
-                          userId: task!.userId,
-                          id: task!.id,
-                          title: task.title,
-                          category: task.category,
-                          dueDate: task.dueDate,
-                          time: task.time,
-                          reminder: task.reminder,
-                          notes: task.notes,
-                          isCompleted: 1,
-                        );
-                        await TaskDatabase.instance.update(updatedTask);
-                        Navigator.pop(context);
-                        await loadTodayTasks();
-                      },
-                      child: const Text("Xác nhận"),
-                    ),
-                  ],
-                ),
               );
             }
           },

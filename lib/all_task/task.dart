@@ -27,6 +27,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
   List<Task> _tasks = [];
   bool _isLoading = true;
   int? _currentUserId;
+  Set<int> _selectedTaskIds = {}; // Theo dõi các task được chọn bằng ID
 
   @override
   void initState() {
@@ -56,29 +57,80 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
+  void _toggleTaskSelection(int taskId) {
+    setState(() {
+      if (_selectedTaskIds.contains(taskId)) {
+        _selectedTaskIds.remove(taskId);
+      } else {
+        _selectedTaskIds.add(taskId);
+      }
+    });
+  }
+
+  Future<void> _confirmDeleteSelectedTasks() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Xoá công việc"),
+            content: const Text(
+              "Bạn có chắc chắn muốn xoá các công việc đã chọn không?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text("Huỷ"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text("Xoá", style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true && _selectedTaskIds.isNotEmpty) {
+      for (var taskId in _selectedTaskIds) {
+        await TaskDatabase.instance.delete(taskId);
+      }
+      setState(() {
+        _selectedTaskIds.clear();
+        _loadTasks(); // Làm mới danh sách sau khi xóa
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Danh sách Task'),
-        actions: [IconButton(icon: Icon(Icons.logout), onPressed: _logout)],
+        actions: [
+          IconButton(
+            icon: Icon(Icons.delete),
+            onPressed: _confirmDeleteSelectedTasks,
+          ),
+          IconButton(icon: Icon(Icons.logout), onPressed: _logout),
+        ],
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _currentUserId == null
+      body:
+          _isLoading
+              ? Center(child: CircularProgressIndicator())
+              : _currentUserId == null
               ? Center(child: Text('Vui lòng đăng nhập để xem task'))
               : _tasks.isEmpty
-                  ? Center(child: Text('Không có task nào'))
-                  : ListView.builder(
-                      itemCount: _tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = _tasks[index];
-                        return buildTaskCard(task);
-                      },
-                    ),
-      floatingActionButton: _currentUserId != null
-          ? FloatingActionButton(
-               onPressed: () {
+              ? Center(child: Text('Không có task nào'))
+              : ListView.builder(
+                itemCount: _tasks.length,
+                itemBuilder: (context, index) {
+                  final task = _tasks[index];
+                  return buildTaskCard(task);
+                },
+              ),
+      floatingActionButton:
+          _currentUserId != null
+              ? FloatingActionButton(
+                onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => AddTaskPage()),
@@ -86,9 +138,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     if (refresh == true) setState(() {});
                   });
                 },
-              child: Icon(Icons.add),
-            )
-          : null,
+                child: Icon(Icons.add),
+              )
+              : null,
     );
   }
 
@@ -111,7 +163,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_box_outline_blank, color: Colors.blue),
+            Checkbox(
+              value: _selectedTaskIds.contains(task.id),
+              onChanged: (value) {
+                _toggleTaskSelection(task.id!);
+              },
+              activeColor: Colors.blue,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

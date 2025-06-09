@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:todo_list/database/user_database.dart';
 import 'package:todo_list/database/user_model.dart';
 import 'package:todo_list/login/login_screen.dart';
+import 'package:todo_list/user/user_stats_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final UserModel user;
@@ -698,46 +699,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _showUserStats() async {
-    await showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'User Stats',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Username: ${_user.username}'),
-                Text('Join Date: ${_user.joinDate ?? 'Unknown'}'),
-                Text('Completed Tasks: ${_user.completedTasks ?? 0}'),
-              ],
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -912,10 +873,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   onPressed: _configureNotifications,
                 ),
                 const SizedBox(height: 8),
-                // Removed "Theme Preference" button
-                const SizedBox(height: 8),
-                // Removed "Language" button
-                const SizedBox(height: 8),
                 buildSettingsButton(
                   "Change Password",
                   icon: Icons.lock,
@@ -934,7 +891,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 buildSettingsButton(
                   "User Stats",
                   icon: Icons.bar_chart,
-                  onPressed: _showUserStats,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserStatsPage(user: _user),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
                 buildSettingsButton(
