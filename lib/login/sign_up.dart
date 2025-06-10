@@ -65,9 +65,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     try {
+      // Kiểm tra email đã tồn tại trong SQLite
+      final existingUser = await UserDatabase.instance.isEmailExist(email);
+      if (existingUser) {
+        setState(() {
+          errorMessage = 'Email đã tồn tại.';
+        });
+      }
+
+      // Tạo tài khoản Firebase
       final credential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
 
+      // Lưu thông tin vào SQLite
       final newUser = UserModel(
         username: username,
         email: email,
@@ -75,12 +85,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       await UserDatabase.instance.registerUser(newUser);
 
-      if (context.mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
-      }
+
     } on FirebaseAuthException catch (e) {
       setState(() {
         if (e.code == 'email-already-in-use') {
@@ -97,6 +106,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       });
     }
   }
+
 
   Widget buildSocialIcon(String assetPath) {
     return ClipOval(
