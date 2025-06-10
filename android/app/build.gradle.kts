@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.todo_list"
-        minSdk = 21 // Android 5.0, phù hợp với Flutter
+        minSdk = 23 // Android 5.0, phù hợp với Flutter
         targetSdk = 35 // Đồng bộ với compileSdk
         versionCode = flutter.versionCode
         versionName = flutter.versionName

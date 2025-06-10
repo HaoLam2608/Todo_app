@@ -52,6 +52,8 @@ dependencies:
   pdf: ^3.10.1  # Cho xuất PDF
   fl_chart: ^0.67.0
   csv: ^5.0.0
+  firebase_auth: ^5.5.4
+  google_sign_in: ^6.2.1
   
 
 dev_dependencies:

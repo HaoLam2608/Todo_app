@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:todo_list/database/user_database.dart';
 import 'package:todo_list/database/user_model.dart';
@@ -58,32 +59,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!_isPasswordStrong(password)) {
       setState(() {
         passwordError =
-            'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và ký tự đặc biệt.';
+        'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và ký tự đặc biệt.';
       });
       return;
     }
 
-    final exists = await UserDatabase.instance.isEmailExist(email);
-    if (exists) {
-      setState(() {
-        errorMessage = 'Email đã tồn tại.';
-      });
-      return;
-    }
+    try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
-    final newUser = UserModel(
-      username: username,
-      email: email,
-      password: password,
-    );
-
-    await UserDatabase.instance.registerUser(newUser);
-
-    if (context.mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      final newUser = UserModel(
+        username: username,
+        email: email,
+        password: password,
       );
+      await UserDatabase.instance.registerUser(newUser);
+
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        if (e.code == 'email-already-in-use') {
+          errorMessage = 'Email đã được sử dụng.';
+        } else if (e.code == 'weak-password') {
+          passwordError = 'Mật khẩu quá yếu.';
+        } else {
+          errorMessage = 'Lỗi: ${e.message}';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Đã xảy ra lỗi: $e';
+      });
     }
   }
 
