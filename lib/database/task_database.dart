@@ -49,7 +49,8 @@ class TaskDatabase {
     reminder TEXT,
     notes TEXT,
     isCompleted INTEGER,
-    user_id INTEGER NOT NULL
+    user_id INTEGER NOT NULL,
+    completionTime DateTime default NULL
   )
 ''');
   }

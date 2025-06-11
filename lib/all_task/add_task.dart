@@ -7,7 +7,7 @@ import 'package:todo_list/services/session_manager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_init;
-
+import 'package:permission_handler/permission_handler.dart';
 final FlutterLocalNotificationsPlugin flutterNotificationPlugin =
 FlutterLocalNotificationsPlugin();
 
@@ -43,19 +43,34 @@ Future<void> initNotifications() async {
     initializationSettings,
     onDidReceiveNotificationResponse: (NotificationResponse response) {},
   );
+  if (await Permission.notification.isDenied) {
+    await Permission.notification.request();
+  }
 
-  // Request notification permission
+  // Yêu cầu quyền thông báo
   await flutterNotificationPlugin
       .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.requestNotificationsPermission();
 
-  // Request exact alarm permission for Android 12+
   await flutterNotificationPlugin
       .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.requestExactAlarmsPermission();
 
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'task_reminder_channel',
+    'Task Reminders',
+    description: 'Channel for Task app reminders',
+    importance: Importance.max,
+  );
+
+  await flutterNotificationPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
   tz_init.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Asia/Ho_Chi_Minh'));
 }
+
 
 Future<void> scheduleTaskReminder(
     int id,
@@ -65,8 +80,8 @@ Future<void> scheduleTaskReminder(
     ) async {
   try {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'task_reminder_channel',
-      'Task Reminders',
+      'task_reminder_channel', // Channel ID
+      'Task Reminders', // Channel name
       channelDescription: 'Channel for Task app reminders',
       importance: Importance.max,
       priority: Priority.high,
@@ -75,6 +90,8 @@ Future<void> scheduleTaskReminder(
     const NotificationDetails platformDetails = NotificationDetails(
       android: androidDetails,
     );
+
+    print("Đang đặt thông báo vào: ${tz.TZDateTime.from(scheduleDate, tz.local)}");
 
     await flutterNotificationPlugin.zonedSchedule(
       id,
@@ -85,12 +102,13 @@ Future<void> scheduleTaskReminder(
       androidAllowWhileIdle: true,
       uiLocalNotificationDateInterpretation:
       UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: null,
     );
   } catch (e) {
     print('Lỗi khi đặt lịch nhắc nhở: $e');
-    // Không throw error để không ảnh hưởng đến việc tạo task
   }
 }
+
 
 class AddTaskPage extends StatefulWidget {
   const AddTaskPage({super.key});
@@ -160,6 +178,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
         final minute = int.parse(timeComponents[1]);
 
         dueDateTime = DateTime(year, month, day, hour, minute);
+        print("Due date time updated: $dueDateTime");
         _updateReminderDateTime();
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,11 +188,19 @@ class _AddTaskPageState extends State<AddTaskPage> {
     }
   }
 
-  void _updateReminderDateTime() {
+  void _updateReminderDateTime() async {
     if (dueDateTime != null && reminderEnabled) {
       switch (selectedReminder) {
         case "10 minutes before":
           reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 10));
+          await scheduleTaskReminder(
+          12345, // id
+          'Test Title',
+          'Test note',
+          DateTime.now().add(const Duration(seconds: 10)),
+          );
+
+          print("Reminder set to 10 minutes before: $reminderDateTime");
           break;
         case "30 minutes before":
           reminderDateTime = dueDateTime!.subtract(const Duration(minutes: 30));
@@ -395,7 +422,6 @@ class _AddTaskPageState extends State<AddTaskPage> {
       // Lấy taskId từ saved task (giả sử Task model có id property)
       final taskId = savedTask.id ?? DateTime.now().millisecondsSinceEpoch;
 
-      // Lưu vào Firestore
       await addTodo(
         titleController.text.trim(),
         notesController.text.trim(),
